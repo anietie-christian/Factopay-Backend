@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------
+  # NestJS Application API Service
+  # ---------------------------------------------
+  api:
+    build:
+      context: .
+      target: development # Targets the dev stage for hot reloading and development
+    container_name: factopay_api
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules # Prevents host node_modules from overwriting container
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-factopay_secure_pass123}@postgres:5432/${DB_NAME:-factopay_dev}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-superSecretKeyChangeMeOnProduction98765!}
+      STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - factopay_network
+
+  # ---------------------------------------------
+  # PostgreSQL Database Service
+  # ---------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: factopay_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-factopay_secure_pass123}
+      POSTGRES_DB: ${DB_NAME:-factopay_dev}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - factopay_network
+
+  # ---------------------------------------------
+  # Redis Cache & Queue Service
+  # ---------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: factopay_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - factopay_network
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  factopay_network:
+    driver: bridge

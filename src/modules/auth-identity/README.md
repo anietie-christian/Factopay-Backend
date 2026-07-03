@@ -101,3 +101,28 @@ export class ProfileController {
   }
 }
 ```
+
+---
+
+## 6. OTP Handoff (SMS & Email Dispatch)
+
+### 6.1 Responsibility Breakdown
+- **Oscar (Auth-Identity Module)**:
+  - Generates the OTP request during registration or security challenges.
+  - Generates and stores/caches the OTP code.
+  - Implements the validation state machine logic (e.g., verifying if the code matches and updating `isEmailVerified`/`isPhoneVerified`).
+- **Christian (Lead Dev - Shared/Operations Kernel)**:
+  - Integrates the physical **SendGrid** (for email delivery) and **Twilio** (for SMS delivery) SDKs/adapters.
+  - Subscribes to the registration and security events or exposes a dispatch interface inside `shared/` to physically send the SMS/Email.
+
+### 6.2 Implementation Detail
+Upon successful registration in `RegisterUserUseCase`, two verification tasks are created:
+1. **Email OTP**: Sent using **SendGrid** API to verify user's email address.
+2. **SMS OTP**: Sent using **Twilio** API to verify user's mobile number.
+
+In production:
+1. The use case will publish a `UserRegisteredEvent` via NestJS `EventEmitter2` or a message queue (BullMQ).
+2. The Event Listener in Christian's shared/operations module will pick up the event and trigger:
+   - **SendGrid Adapter** for the Email verification code.
+   - **Twilio Adapter** for the SMS verification code.
+

@@ -27,6 +27,9 @@ To complete the end-to-end integration of the completed `auth-identity` module, 
 2. **`FactoPayException` Hierarchy**:
    - **Path**: `src/modules/shared/domain/exceptions/`
    - **Details**: Define the base class exceptions so we can map auth errors (like `EmailAlreadyExistsException`, `InvalidOtpException`) to standardized API error response bodies.
+3. **SMS & Email Transport Adapters**:
+   - **Path**: `src/modules/shared/infrastructure/notifications/`
+   - **Details**: Setup integration adapters for **SendGrid** (Email OTP) and **Twilio** (SMS OTP) so the OTP codes generated in `auth-identity` can be sent to the user.
 
 ---
 
