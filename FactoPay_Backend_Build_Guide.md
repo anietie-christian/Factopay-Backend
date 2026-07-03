@@ -42,78 +42,73 @@ Everything — API, background jobs, webhook handlers, blockchain adapters — i
 
 ## Part 3 — Team Structure & Ownership
 
-You have 4 backend engineers total (including yourself). Here's how the work splits, based on the bounded contexts in your architecture docs.
+You have 3 backend engineers total. Here's how the work splits, based on the bounded contexts in your architecture docs.
 
 ### Christian — Lead Backend Developer
-**Owns:** System architecture, the API Gateway/`main.ts` bootstrapping, transaction-locking strategy, database schema *approval*, final PR approval, and the `shared/` kernel.
+**Owns:** System architecture, the API Gateway/`main.ts` bootstrapping, transaction-locking strategy, database schema *approval*, final PR approval, the `shared/` kernel, `transfer-engine` (orchestration/state transitions), and `gateway-integrations` (webhooks).
 
 Concretely, you are responsible for:
 - Setting up the NestJS monorepo skeleton (`app.module.ts`, global filters, global pipes, versioned routing under `/api/v1/`).
 - Defining the **shared kernel**: custom exception hierarchy (`FactoPayException` → subclasses like `InsufficientBalanceException`, `KycNotApprovedException`), guarded value objects (UUID, Money, CurrencyCode), and the global `IdempotencyMiddleware`.
-- Reviewing every PR that touches `wallet-ledger` or `transfer-engine` personally — these are the two contexts where a bug costs real money.
-- Owning the **row-level locking strategy** (`SELECT ... FOR UPDATE`) so all three devs implement it consistently rather than each inventing their own.
-- Running daily 15-minute syncs to catch integration risk early (e.g., "Dev 2's KYC event isn't firing the wallet provisioning listener yet").
+- Reviewing every PR personally — especially those that touch `wallet-ledger` or `transfer-engine` where a bug costs real money.
+- Owning the **row-level locking strategy** (`SELECT ... FOR UPDATE`) so all devs implement it consistently rather than inventing their own.
+- Running daily 15-minute syncs to catch integration risk early.
 - Writing `ARCHITECTURE.md` and `DATABASE_SCHEMA.md`.
+- `InitiateTransferUseCase` — orchestrates the whole transfer: checks KYC status, checks wallet balance, locks FX quote, calls Mr. Samuel's `PostLedgerTransactionUseCase`, calls Oscar's Stellar service, and updates transfer state at every step.
+- `WebhookSignatureValidator` — HMAC verification for simulated Flutterwave/Transak webhooks. Any unsigned or forged webhook is rejected and logged, never silently accepted.
+- Webhook retry/dead-letter logic (1 min → 5 min → 15 min → 1 hour → DLQ after 5 failures), ideally via BullMQ.
+- `TransferController`, `RatesController`, `WebhookController`.
 
-### Backend Developer 1 — Ledger & Wallet Co-Owner
+### Mr. Samuel — Ledger & Wallet Co-Owner
 **Owns:** `wallet-ledger` bounded context — the financial core.
 
 What they build:
 - The `Wallet` and `LedgerAccount`/`LedgerEntry` domain models, with the **append-only constraint enforced at the database level** (no `UPDATE`/`DELETE` grants on `ledger_entries` in any environment, including dev).
 - The `DoubleEntryEngine` domain service — a single function that takes a set of proposed entries and validates `sum(debits) === sum(credits)` before allowing a commit. This is the single most important piece of logic in the whole codebase.
-- `ProvisionWalletUseCase` (triggered by the `KycApprovedEvent` from the compliance context — this is their first integration point with Dev 2).
+- `ProvisionWalletUseCase` (triggered by the `KycApprovedEvent` from Oscar's compliance/KYC context).
 - `CalculateBalanceUseCase` — balances computed by summing ledger entries, never stored/updated directly.
 - `PostLedgerTransactionUseCase` — the only sanctioned entry point for writing to the ledger. Every other module that needs to move money calls *this*, they never touch `ledger_entries` directly.
 - Database migrations for `wallets`, `ledger_accounts`, `ledger_entries`, using `DECIMAL(18,4)` for every monetary column.
 - `WalletController` (`/api/v1/wallets/*`).
 
-### Backend Developer 2 — Auth & Compliance
-**Owns:** `auth-identity` and `kyc-management` bounded contexts.
+### Oscar — Auth, Compliance & Blockchain Developer
+**Owns:** `auth-identity`, `kyc-management`, `audit-compliance`, and `blockchain-settlement` bounded contexts.
 
 What they build:
 - Registration/login/OTP flow: `RegisterUserUseCase`, `LoginUseCase`, `VerifyOtpUseCase`, JWT strategy with refresh token rotation, password hashing (bcrypt/argon2).
 - The **KYC state machine**: `UNVERIFIED → PENDING → UNDER_REVIEW → APPROVED / REJECTED`, implemented as an explicit state field with guarded transitions (reject illegal transitions at the domain layer, not just the UI).
 - `SubmitKycUseCase`, `ReviewKycUseCase`, `ApproveKycUseCase` — for the MVP, KYC is simulated (mock Sumsub responses), but the state machine and events must behave exactly as they would in production.
-- The `KycApprovedEvent` — this is the critical hand-off to Dev 1's wallet provisioning. Get this contract agreed with Dev 1 on Day 3, in writing, before either of you build it.
+- The `KycApprovedEvent` — this is the critical hand-off to Mr. Samuel's wallet provisioning. Get this contract agreed with Mr. Samuel on Day 3, in writing, before either of you build it.
 - The **audit-compliance** context: `WriteAuditTrailUseCase`, and the global `AuditLogInterceptor` that captures every state-modifying request across the whole app (who did what, when, before/after state) into an immutable `audit_logs` table.
-- `AuthController` and `KycController`.
-
-### Backend Developer 3 — Blockchain, FX & Webhooks
-**Owns:** `blockchain-settlement`, `transfer-engine` (FX side), and `gateway-integrations`.
-
-What they build:
 - `IStellarGateway` interface + `StellarService` implementation wrapping `stellar-sdk`, targeting **testnet only** for the MVP. Never handle real private keys — testnet keypairs live in environment variables, never logged, never committed.
 - `SubmitToStellarTestnetUseCase`, `UpdateStellarTxHashUseCase`.
-- `FxQuote` value object with **30-second expiry logic** — `RequestQuoteUseCase` locks a rate for exactly 30 seconds; anything after that must be re-quoted.
-- `InitiateTransferUseCase` — orchestrates the whole transfer: checks KYC status, checks wallet balance, locks FX quote, calls Dev 1's `PostLedgerTransactionUseCase`, calls the Stellar service, and updates transfer state at every step.
-- `WebhookSignatureValidator` — HMAC verification for simulated Flutterwave/Transak webhooks. Any unsigned or forged webhook is rejected and logged, never silently accepted.
-- Webhook retry/dead-letter logic (1 min → 5 min → 15 min → 1 hour → DLQ after 5 failures), ideally via BullMQ.
-- `TransferController`, `RatesController`, `WebhookController`.
+- `AuthController`, `KycController`, and `BlockchainController`.
 
-### How the four of you avoid collisions
-- Dev 1 and Dev 3 both touch `transfer-engine` — Dev 3 owns orchestration/state transitions, Dev 1 owns anything that actually posts to the ledger. The rule: **Dev 3's code calls Dev 1's use case; Dev 3 never writes ledger entries directly.**
-- Dev 2's `KycApprovedEvent` and Dev 1's wallet listener are the other seam — agree on the event payload shape by Day 3 (event name, `userId`, timestamp, KYC tier) so you're not blocked on each other.
-- You (Christian) own the `shared/` kernel so nobody duplicates exception classes, value objects, or the idempotency middleware.
+### How the three of you avoid collisions
+- Christian owns orchestration/state transitions in `transfer-engine`, while Mr. Samuel owns anything that actually posts to the ledger. The rule: **Christian's code calls Mr. Samuel's use case; Christian never writes ledger entries directly.**
+- Oscar's `KycApprovedEvent` and Mr. Samuel's wallet listener are the other seam — agree on the event payload shape by Day 3 (event name, `userId`, timestamp, KYC tier) so you're not blocked on each other.
+- Christian and Oscar collaborate on blockchain triggers — Christian's transfer orchestration calls Oscar's Stellar service.
+- Christian owns the `shared/` kernel so nobody duplicates exception classes, value objects, or the idempotency middleware.
 
 ---
 
 ## Part 4 — Repository Structure (Clean DDD)
 
-This is the skeleton you (Christian) set up on Day 1 so the other three devs have a place to work immediately:
+This is the skeleton Christian sets up on Day 1 so the team has a place to work immediately:
 
 ```
 src/
-├── main.ts                     # Bootstraps app, prefixes /api/v1/, global filters
-├── app.module.ts                # Imports all bounded-context modules
+├── main.ts                     # Bootstraps app, prefixes /api/v1/, global filters (Christian)
+├── app.module.ts                # Imports all bounded-context modules (Christian)
 │
 ├── modules/
-│   ├── auth-identity/           # Dev 2
-│   ├── kyc-management/          # Dev 2
-│   ├── wallet-ledger/           # Dev 1
-│   ├── transfer-engine/         # Dev 3 (orchestration) + Dev 1 (ledger posting)
-│   ├── blockchain-settlement/   # Dev 3
-│   ├── gateway-integrations/    # Dev 3 (webhooks)
-│   ├── audit-compliance/        # Dev 2
+│   ├── auth-identity/           # Oscar
+│   ├── kyc-management/          # Oscar
+│   ├── wallet-ledger/           # Mr. Samuel
+│   ├── transfer-engine/         # Christian (orchestration) + Mr. Samuel (ledger posting)
+│   ├── blockchain-settlement/   # Oscar
+│   ├── gateway-integrations/    # Christian (webhooks)
+│   ├── audit-compliance/        # Oscar
 │   └── shared/                  # Christian
 │       ├── domain/
 │       │   ├── value-objects/   # Money, CurrencyCode, GuardedUUID
@@ -124,7 +119,7 @@ src/
 │           └── guards/          # RateLimiting, RolesGuard
 ```
 
-Each bounded context internally follows: `domain/` (models, services, repository interfaces) → `application/` (use-cases, DTOs) → `infrastructure/` (controllers, persistence, adapters). This isolation means Dev 1 can swap the ledger's persistence implementation without anyone else's code changing, and it makes each context independently testable.
+Each bounded context internally follows: `domain/` (models, services, repository interfaces) → `application/` (use-cases, DTOs) → `infrastructure/` (controllers, persistence, adapters). This isolation means Mr. Samuel can swap the ledger's persistence implementation without anyone else's code changing, and it makes each context independently testable.
 
 ---
 
@@ -132,17 +127,17 @@ Each bounded context internally follows: `domain/` (models, services, repository
 
 Organize migrations by domain owner so PRs don't conflict:
 
-**Auth & Users** *(Dev 2)*: `users`, `user_profiles`, `auth_sessions`, `otp_codes`
+**Auth & Users** *(Oscar)*: `users`, `user_profiles`, `auth_sessions`, `otp_codes`
 
-**Compliance & KYC** *(Dev 2)*: `kyc_records`, `kyc_documents`, `aml_flags`, `compliance_records`
+**Compliance & KYC** *(Oscar)*: `kyc_records`, `kyc_documents`, `aml_flags`, `compliance_records`
 
-**Financial Core** *(Dev 1)*: `wallets`, `ledger_accounts`, `ledger_entries` (immutable, append-only), `fx_rates`, `fx_quotes`
+**Financial Core** *(Mr. Samuel)*: `wallets`, `ledger_accounts`, `ledger_entries` (immutable, append-only), `fx_rates`, `fx_quotes`
 
-**Transactions** *(Dev 3 + Dev 1)*: `recipients`, `transfers`, `transfer_events`, `blockchain_transactions`
+**Transactions** *(Christian + Mr. Samuel + Oscar)*: `recipients`, `transfers`, `transfer_events`, `blockchain_transactions`
 
-**Operations** *(Christian + Dev 2)*: `audit_logs`, `admin_users`, `roles`, `notifications`
+**Operations** *(Christian + Oscar)*: `audit_logs`, `admin_users`, `roles`, `notifications`
 
-**Rule for `ledger_entries` specifically:** this table gets `INSERT`-only permissions. If Dev 1 ever finds themselves writing an `UPDATE` against it to "fix" a balance, that's a signal to stop and post a *reversing entry* instead — never mutate history.
+**Rule for `ledger_entries` specifically:** this table gets `INSERT`-only permissions. If Mr. Samuel ever finds themselves writing an `UPDATE` against it to "fix" a balance, that's a signal to stop and post a *reversing entry* instead — never mutate history.
 
 ---
 
@@ -152,25 +147,25 @@ All endpoints are versioned under `/api/v1/`. Every transfer-initiating endpoint
 
 | Owner | Method | Path | Purpose |
 |---|---|---|---|
-| Dev 2 | POST | `/auth/register` | Register user |
-| Dev 2 | POST | `/auth/login` | JWT issuance |
-| Dev 2 | POST | `/auth/refresh` | Refresh expired JWT |
-| Dev 2 | GET/PATCH | `/users/profile` | Read/update profile |
-| Dev 2 | POST | `/kyc/submit` | Submit KYC docs |
-| Dev 2 | GET | `/kyc/status` | Check KYC state |
-| Dev 2 | PATCH | `/admin/kyc/:id/review` | Admin approve/reject |
-| Dev 1 | POST | `/wallets/create` | Create wallet (usually auto via KYC event) |
-| Dev 1 | GET | `/wallets/balance` | Derived multi-currency balance |
-| Dev 1 | GET | `/wallets/ledger` | Ledger entries for a wallet |
-| Dev 3 | GET | `/rates/live` | Live FX rates |
-| Dev 3 | POST | `/rates/quote` | Lock a quote for 30s |
-| Dev 3 | POST | `/transfers/initiate` | Start a transfer (Idempotency-Key required) |
-| Dev 3 | GET | `/transfers/:id/status` | Poll status — never assume instant success |
-| Dev 3 | POST | `/blockchain/send` | Internal: push USDC to anchor (testnet) |
-| Dev 3 | GET | `/blockchain/transactions/:id` | Retrieve tx details |
-| Dev 3 | POST | `/webhook/flutterwave`, `/webhook/transak` | Signed inbound webhooks |
-| Christian/Dev 2 | GET | `/admin/dashboard` | Volume, fees, alerts |
-| Christian/Dev 2 | GET | `/admin/transfers`, `/admin/audit` | Search + immutable audit log |
+| Oscar | POST | `/auth/register` | Register user |
+| Oscar | POST | `/auth/login` | JWT issuance |
+| Oscar | POST | `/auth/refresh` | Refresh expired JWT |
+| Oscar | GET/PATCH | `/users/profile` | Read/update profile |
+| Oscar | POST | `/kyc/submit` | Submit KYC docs |
+| Oscar | GET | `/kyc/status` | Check KYC state |
+| Oscar | PATCH | `/admin/kyc/:id/review` | Admin approve/reject |
+| Mr. Samuel | POST | `/wallets/create` | Create wallet (usually auto via KYC event) |
+| Mr. Samuel | GET | `/wallets/balance` | Derived multi-currency balance |
+| Mr. Samuel | GET | `/wallets/ledger` | Ledger entries for a wallet |
+| Christian | GET | `/rates/live` | Live FX rates |
+| Christian | POST | `/rates/quote` | Lock a quote for 30s |
+| Christian | POST | `/transfers/initiate` | Start a transfer (Idempotency-Key required) |
+| Christian | GET | `/transfers/:id/status` | Poll status — never assume instant success |
+| Oscar | POST | `/blockchain/send` | Internal: push USDC to anchor (testnet) |
+| Oscar | GET | `/blockchain/transactions/:id` | Retrieve tx details |
+| Christian | POST | `/webhook/flutterwave`, `/webhook/transak` | Signed inbound webhooks |
+| Christian/Oscar | GET | `/admin/dashboard` | Volume, fees, alerts |
+| Christian/Oscar | GET | `/admin/transfers`, `/admin/audit` | Search + immutable audit log |
 
 Canonical error codes every dev must reuse (don't invent new ones ad hoc): `INSUFFICIENT_BALANCE`, `KYC_NOT_APPROVED`, `FX_QUOTE_EXPIRED`, `TRANSFER_NOT_FOUND`, `BLOCKCHAIN_FAILED`, `COMPLIANCE_FLAGGED`, `RATE_LIMIT_EXCEEDED`.
 
@@ -181,10 +176,10 @@ Canonical error codes every dev must reuse (don't invent new ones ad hoc): `INSU
 Some things must exist before others can be built. This is the order that avoids anyone being blocked:
 
 1. **Day 1–2:** Christian sets up repo, DB connection, base NestJS app, CI skeleton. Everyone can then start scaffolding their own module folder in parallel.
-2. **Day 3–4:** Dev 2 builds auth (nothing else needs it yet, but everything eventually will). Dev 1 starts the ledger domain model and `DoubleEntryEngine` in isolation (pure logic, no dependencies). Dev 3 starts the Stellar testnet adapter in isolation.
-3. **Day 5–6:** Dev 2 builds the KYC state machine and publishes the `KycApprovedEvent` contract. Dev 1 builds `ProvisionWalletUseCase` listening for that event — **first integration checkpoint**.
-4. **Day 7–9:** Dev 3 builds `InitiateTransferUseCase`, calling into Dev 1's `PostLedgerTransactionUseCase` and Dev 2's KYC status check — **second integration checkpoint**, this is the core transaction path.
-5. **Day 10–11:** Dev 3 wires up webhook verification and blockchain confirmation callbacks. Christian + Dev 2 build the audit interceptor and confirm it's capturing every write across all three other devs' modules.
+2. **Day 3–4:** Oscar builds auth (nothing else needs it yet, but everything eventually will). Mr. Samuel starts the ledger domain model and `DoubleEntryEngine` in isolation (pure logic, no dependencies). Oscar starts the Stellar testnet adapter in isolation.
+3. **Day 5–6:** Oscar builds the KYC state machine and publishes the `KycApprovedEvent` contract. Mr. Samuel builds `ProvisionWalletUseCase` listening for that event — **first integration checkpoint**.
+4. **Day 7–9:** Christian builds `InitiateTransferUseCase`, calling into Mr. Samuel's `PostLedgerTransactionUseCase` and Oscar's KYC status check and Stellar service — **second integration checkpoint**, this is the core transaction path.
+5. **Day 10–11:** Christian wires up webhook verification, and Oscar works on blockchain confirmation callbacks. Christian + Oscar build the audit interceptor and confirm it's capturing every write across all three other devs' modules.
 6. **Day 12–13:** Admin dashboard endpoints, compliance record generation, final integration testing across all four modules together.
 7. **Day 14:** Freeze features. Fix bugs only. Rehearse the demo end-to-end at least twice.
 
@@ -208,7 +203,7 @@ Every inbound webhook (`/webhook/flutterwave`, `/webhook/transak`) must have its
 - Nobody ever runs `UPDATE ledger_entries` or `DELETE FROM ledger_entries` — reversals are new entries, not edits.
 - Wallet balance is *always* `SUM(credits) - SUM(debits)` computed on read (or a maintained read-model that's rebuilt from entries), never a column that gets directly incremented/decremented.
 
-**Worked example your team should implement as a test case (from your own docs):** a €200 transfer with a 1% FX spread produces exactly these entries — `USER_WALLET(EUR) -200 / SETTLEMENT_ACCOUNT(EUR) +200` → `SETTLEMENT_ACCOUNT(EUR) -2 / FEE_ACCOUNT(EUR) +2` → `SETTLEMENT_ACCOUNT(USDC) +198 / RESERVE_ACCOUNT(USDC equiv) -198` → `RESERVE_ACCOUNT(USDC) -198 / PAYOUT_ACCOUNT(GHS float) +equiv`. If Dev 1's `DoubleEntryEngine` can't produce and validate this exact sequence, it isn't done.
+**Worked example your team should implement as a test case (from your own docs):** a €200 transfer with a 1% FX spread produces exactly these entries — `USER_WALLET(EUR) -200 / SETTLEMENT_ACCOUNT(EUR) +200` → `SETTLEMENT_ACCOUNT(EUR) -2 / FEE_ACCOUNT(EUR) +2` → `SETTLEMENT_ACCOUNT(USDC) +198 / RESERVE_ACCOUNT(USDC equiv) -198` → `RESERVE_ACCOUNT(USDC) -198 / PAYOUT_ACCOUNT(GHS float) +equiv`. If Mr. Samuel's `DoubleEntryEngine` can't produce and validate this exact sequence, it isn't done.
 
 ---
 
@@ -224,9 +219,9 @@ Every inbound webhook (`/webhook/flutterwave`, `/webhook/transak`) must have its
 
 ## Part 10 — Testing Expectations Per Dev
 
-- **Dev 1 (Ledger):** Unit tests proving the double-entry engine rejects any unbalanced entry set; concurrency test proving two simultaneous debits against the same wallet can't both succeed if it would overdraw.
-- **Dev 2 (Auth/KYC):** Unit tests for every illegal state transition (e.g., `APPROVED → PENDING` should throw); integration test for the full register → OTP → login flow.
-- **Dev 3 (Blockchain/FX/Webhooks):** Unit test for FX quote expiry at exactly 30s; test that an unsigned webhook is rejected; integration test for the full transfer flow against Stellar testnet.
+- **Mr. Samuel (Ledger):** Unit tests proving the double-entry engine rejects any unbalanced entry set; concurrency test proving two simultaneous debits against the same wallet can't both succeed if it would overdraw.
+- **Oscar (Auth/KYC/Blockchain):** Unit tests for every illegal state transition (e.g., `APPROVED → PENDING` should throw); integration test for the full register → OTP → login flow; integration test for the full transfer flow against Stellar testnet.
+- **Christian (Orchestration/Webhooks):** Unit test for FX quote expiry at exactly 30s; test that an unsigned webhook is rejected.
 - **All devs:** target 90%+ coverage on their bounded context, using Jest + Supertest, run locally before every commit — not just in CI.
 
 ---
@@ -235,9 +230,9 @@ Every inbound webhook (`/webhook/flutterwave`, `/webhook/transak`) must have its
 
 Doc ownership should mirror code ownership so the docs stay accurate:
 - **Christian:** `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `README.md`/`SETUP.md`
-- **Dev 1:** the ledger sections of `TRANSFER_FLOW.md`
-- **Dev 2:** `COMPLIANCE_FLOW.md`
-- **Dev 3:** the blockchain/webhook sections of `TRANSFER_FLOW.md`, `API_DOCUMENTATION.md` (via Swagger export)
+- **Mr. Samuel:** the ledger sections of `TRANSFER_FLOW.md`
+- **Oscar:** `COMPLIANCE_FLOW.md`, the blockchain sections of `TRANSFER_FLOW.md`
+- **Christian/Oscar:** `API_DOCUMENTATION.md` (via Swagger export)
 - **Whole team, Day 13:** `RUNBOOK.md` — stuck transfers, manual ledger reversals, float monitoring, outage messaging. This must exist before Day 14; it's what makes the MVP operable, not just demoable.
 
 ---
@@ -257,12 +252,12 @@ A backend PR is not done until:
 
 Everything above exists to make this sequence work flawlessly, end to end, live:
 
-1. Register + login (Dev 2's auth) → JWT issued.
-2. Submit mock KYC → admin approves → `KycApprovedEvent` fires → wallet auto-provisions (Dev 2 → Dev 1 handoff).
-3. Request FX quote, locked 30s (Dev 3).
-4. Initiate transfer with `Idempotency-Key` (Dev 3 orchestrates, Dev 1 posts ledger entries).
-5. Simulated Stellar transaction hash returned (Dev 3).
-6. Compliance record + immutable audit log generated automatically (Dev 2's interceptor).
-7. Admin dashboard shows the completed transfer, the FX spread sitting in `FEE_ACCOUNT`, and the simulated float deduction (Christian/Dev 2, pulling from Dev 1's ledger).
+1. Register + login (Oscar's auth) → JWT issued.
+2. Submit mock KYC → admin approves → `KycApprovedEvent` fires → wallet auto-provisions (Oscar → Mr. Samuel handoff).
+3. Request FX quote, locked 30s (Christian).
+4. Initiate transfer with `Idempotency-Key` (Christian orchestrates, Mr. Samuel posts ledger entries, Oscar handles blockchain).
+5. Simulated Stellar transaction hash returned (Oscar).
+6. Compliance record + immutable audit log generated automatically (Oscar's interceptor).
+7. Admin dashboard shows the completed transfer, the FX spread sitting in `FEE_ACCOUNT`, and the simulated float deduction (Christian/Oscar, pulling from Mr. Samuel's ledger).
 
 If any one of those seven steps breaks, it's almost always because one of the two integration checkpoints (Day 5–6 KYC→Wallet event, Day 7–9 Transfer→Ledger call) wasn't tested together early enough — which is why those checkpoints are marked explicitly in the build order above rather than left until the end.
