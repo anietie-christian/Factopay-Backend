@@ -6,7 +6,7 @@ This file tracks the ownership, development status, and recent changes of each b
 
 | Module | Scope / Bounded Context | Owner | Status |
 |---|---|---|---|
-| `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | ✅ Completed |
+| `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | 🔄 In Progress |
 | `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | 🔄 In Progress |
 | `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | ⏳ Pending |
 | `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | ⏳ Pending |
