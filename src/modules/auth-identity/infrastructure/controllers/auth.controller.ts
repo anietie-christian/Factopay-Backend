@@ -3,9 +3,11 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RegisterDto } from '../../application/dtos/register.dto';
 import { LoginDto } from '../../application/dtos/login.dto';
 import { VerifyOtpDto } from '../../application/dtos/verify-otp.dto';
+import { RefreshTokenDto } from '../../application/dtos/refresh-token.dto';
 import { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
 import { LoginUseCase } from '../../application/use-cases/login.use-case';
 import { VerifyOtpUseCase } from '../../application/use-cases/verify-otp.use-case';
+import { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -14,6 +16,7 @@ export class AuthController {
     private readonly registerUserUseCase: RegisterUserUseCase,
     private readonly loginUseCase: LoginUseCase,
     private readonly verifyOtpUseCase: VerifyOtpUseCase,
+    private readonly refreshTokenUseCase: RefreshTokenUseCase,
   ) {}
 
   @Post('register')
@@ -43,5 +46,14 @@ export class AuthController {
   @ApiResponse({ status: 404, description: 'User not found' })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
     return this.verifyOtpUseCase.execute(verifyOtpDto);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Rotate/refresh expired access token' })
+  @ApiResponse({ status: 200, description: 'Tokens successfully refreshed' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.refreshTokenUseCase.execute(refreshTokenDto);
   }
 }
