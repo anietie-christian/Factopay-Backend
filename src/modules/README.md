@@ -42,7 +42,7 @@ To complete the end-to-end integration of the completed `auth-identity` module, 
 - **Ledger Build Guide:** Added `src/modules/wallet-ledger/README.md` outlining specific requirements, db constraints, and test expectations for Mr. Samuel.
 - **Auth & Identity:** Completed implementation of the `auth-identity` bounded context, including:
   - Domain Layer: `User` entity, `Role` & `KycStatus` enums, `IUserRepository` contract interface.
-  - Application Layer: `RegisterUserUseCase`, `LoginUseCase`, `VerifyOtpUseCase`, registration/login/OTP verification DTOs.
-  - Infrastructure Layer: `AuthController`, `PrismaUserRepository`, and Passport-JWT `JwtStrategy`.
+  - Application Layer: `RegisterUserUseCase`, `LoginUseCase`, `VerifyOtpUseCase`, `RefreshTokenUseCase` (for token rotation), `GetProfileUseCase`, and `UpdateProfileUseCase` along with respective DTOs.
+  - Infrastructure Layer: `AuthController`, `UserController`, `PrismaUserRepository`, and Passport-JWT `JwtStrategy`.
   - Module Wiring: `AuthIdentityModule` definition.
 - **KYC Management:** Planning phase started.

@@ -46,7 +46,7 @@ src/modules/auth-identity/
 
 ## 4. API Specification
 
-All endpoints are versioned under `/api/v1/auth/*`:
+All endpoints are versioned under `/api/v1/*`:
 
 ### 4.1 Register User
 - **Route:** `POST /api/v1/auth/register`
@@ -62,6 +62,22 @@ All endpoints are versioned under `/api/v1/auth/*`:
 - **Route:** `POST /api/v1/auth/verify-otp`
 - **Request Payload:** `VerifyOtpDto`
 - **Response:** `{ success: boolean; message: string }`
+
+### 4.4 Refresh Token (Token Rotation)
+- **Route:** `POST /api/v1/auth/refresh`
+- **Request Payload:** `RefreshTokenDto`
+- **Response:** `{ accessToken: string; refreshToken: string }`
+
+### 4.5 Get Profile (Protected)
+- **Route:** `GET /api/v1/users/profile`
+- **Headers:** `Authorization: Bearer <token>`
+- **Response:** `{ id: string; email: string; phoneNumber: string; isEmailVerified: boolean; isPhoneVerified: boolean; kycStatus: string; kycTier: string; role: string; isActive: boolean; lastLoginAt: Date; createdAt: Date }`
+
+### 4.6 Update Profile (Protected)
+- **Route:** `PATCH /api/v1/users/profile`
+- **Headers:** `Authorization: Bearer <token>`
+- **Request Payload:** `UpdateProfileDto`
+- **Response:** Updated profile object (same shape as Get Profile)
 
 ---
 
