@@ -126,14 +126,14 @@ The backend is organized into **seven bounded contexts**, each encapsulating a d
 
 | Bounded Context | Owner | Key Responsibility |
 |---|---|---|
-| `shared/` (Kernel) | Lead Dev | Value objects, exceptions, idempotency middleware, guards |
-| `auth-identity/` | Dev 2 | Registration, JWT, OTP, refresh token rotation |
-| `kyc-management/` | Dev 2 | KYC state machine, Sumsub integration, tier management |
-| `wallet-ledger/` | Dev 1 | Double-entry engine, wallet provisioning, balance computation |
-| `transfer-engine/` | Dev 3 + Dev 1 | FX quotes, transfer orchestration (Dev 3), ledger posting (Dev 1) |
-| `blockchain-settlement/` | Dev 3 | Stellar SDK wrapper, testnet operations |
-| `gateway-integrations/` | Dev 3 | Webhook signature validation, retry/DLQ logic |
-| `audit-compliance/` | Dev 2 | Global audit interceptor, compliance record generation |
+| `shared/` (Kernel) | Christian (Lead) | Value objects, exceptions, idempotency middleware, guards |
+| `auth-identity/` | Oscar | Registration, JWT, OTP, refresh token rotation |
+| `kyc-management/` | Oscar | KYC state machine, Sumsub integration, tier management |
+| `wallet-ledger/` | Mr. Samuel | Double-entry engine, wallet provisioning, balance computation |
+| `transfer-engine/` | Christian + Mr. Samuel | FX quotes, transfer orchestration (Christian), ledger posting (Mr. Samuel) |
+| `blockchain-settlement/` | Oscar | Stellar SDK wrapper, testnet operations |
+| `gateway-integrations/` | Christian | Webhook signature validation, retry/DLQ logic |
+| `audit-compliance/` | Oscar | Global audit interceptor, compliance record generation |
 
 ### Cross-Context Integration Points
 
@@ -418,31 +418,31 @@ All endpoints versioned under `/api/v1/`. Transfer endpoints require `Idempotenc
 
 | Method | Endpoint | Purpose | Owner |
 |---|---|---|---|
-| POST | `/auth/register` | User registration | Dev 2 |
-| POST | `/auth/login` | JWT issuance | Dev 2 |
-| POST | `/auth/refresh` | Refresh expired JWT | Dev 2 |
-| POST | `/auth/verify-otp` | Phone/email OTP verification | Dev 2 |
-| GET/PATCH | `/users/profile` | Read/update user profile + tier | Dev 2 |
-| POST | `/kyc/submit` | Submit KYC documents | Dev 2 |
-| GET | `/kyc/status` | Check KYC verification state | Dev 2 |
-| PATCH | `/admin/kyc/:id/review` | Admin approve/reject KYC | Dev 2 |
-| POST | `/wallets/create` | Create wallet (auto via KYC event) | Dev 1 |
-| GET | `/wallets/balance` | Derived multi-currency balance | Dev 1 |
-| GET | `/wallets/ledger` | Ledger entries for a wallet | Dev 1 |
-| GET | `/rates/live` | Live FX exchange rates | Dev 3 |
-| POST | `/rates/quote` | Lock a quote for 30 seconds | Dev 3 |
-| POST | `/transfers/initiate` | Start transfer (**Idempotency-Key**) | Dev 3 |
-| GET | `/transfers/:id/status` | Poll transfer status | Dev 3 |
-| POST | `/blockchain/send` | Push USDC to anchor (testnet) | Dev 3 |
-| GET | `/blockchain/transactions/:id` | Retrieve blockchain tx details | Dev 3 |
-| POST | `/webhook/flutterwave` | Signed payout confirmation | Dev 3 |
-| POST | `/webhook/transak` | Signed on-ramp confirmation | Dev 3 |
-| GET | `/rewards/points` | User points balance + history | Backend |
-| POST | `/rewards/redeem` | Redeem points for rewards | Backend |
-| POST | `/gateway/charge` | B2B partner payment charge | Backend |
-| GET | `/admin/dashboard` | Volume, fees, alerts | Lead/Dev 2 |
-| GET | `/admin/transfers` | Search transfers | Lead/Dev 2 |
-| GET | `/admin/audit` | Immutable audit log | Lead/Dev 2 |
+| POST | `/auth/register` | User registration | Oscar |
+| POST | `/auth/login` | JWT issuance | Oscar |
+| POST | `/auth/refresh` | Refresh expired JWT | Oscar |
+| POST | `/auth/verify-otp` | Phone/email OTP verification | Oscar |
+| GET/PATCH | `/users/profile` | Read/update user profile + tier | Oscar |
+| POST | `/kyc/submit` | Submit KYC documents | Oscar |
+| GET | `/kyc/status` | Check KYC verification state | Oscar |
+| PATCH | `/admin/kyc/:id/review` | Admin approve/reject KYC | Oscar |
+| POST | `/wallets/create` | Create wallet (auto via KYC event) | Mr. Samuel |
+| GET | `/wallets/balance` | Derived multi-currency balance | Mr. Samuel |
+| GET | `/wallets/ledger` | Ledger entries for a wallet | Mr. Samuel |
+| GET | `/rates/live` | Live FX exchange rates | Christian |
+| POST | `/rates/quote` | Lock a quote for 30 seconds | Christian |
+| POST | `/transfers/initiate` | Start transfer (**Idempotency-Key**) | Christian |
+| GET | `/transfers/:id/status` | Poll transfer status | Christian |
+| POST | `/blockchain/send` | Push USDC to anchor (testnet) | Oscar |
+| GET | `/blockchain/transactions/:id` | Retrieve blockchain tx details | Oscar |
+| POST | `/webhook/flutterwave` | Signed payout confirmation | Christian |
+| POST | `/webhook/transak` | Signed on-ramp confirmation | Christian |
+| GET | `/rewards/points` | User points balance + history | Christian |
+| POST | `/rewards/redeem` | Redeem points for rewards | Christian |
+| POST | `/gateway/charge` | B2B partner payment charge | Christian |
+| GET | `/admin/dashboard` | Volume, fees, alerts | Christian/Oscar |
+| GET | `/admin/transfers` | Search transfers | Christian/Oscar |
+| GET | `/admin/audit` | Immutable audit log | Christian/Oscar |
 
 **Canonical Error Codes:** `INSUFFICIENT_BALANCE` · `KYC_NOT_APPROVED` · `FX_QUOTE_EXPIRED` · `TRANSFER_NOT_FOUND` · `BLOCKCHAIN_FAILED` · `COMPLIANCE_FLAGGED` · `RATE_LIMIT_EXCEEDED`
 
