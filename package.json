@@ -1,0 +1,26 @@
+{
+  "name": "factopay",
+  "version": "1.0.0",
+  "description": "Fast · Secure · Near-Zero Fee Remittance from Europe & America to Africa.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anietie-christian/Factopay-Backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/anietie-christian/Factopay-Backend/issues"
+  },
+  "homepage": "https://github.com/anietie-christian/Factopay-Backend#readme",
+  "dependencies": {
+    "@prisma/client": "^7.8.0",
+    "decimal.js": "^10.6.0",
+    "prisma": "^7.8.0"
+  }
+}

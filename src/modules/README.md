@@ -11,9 +11,15 @@ This file tracks the ownership, development status, and recent changes of each b
 | `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | ⏳ Pending |
 | `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | ⏳ Pending |
 | `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Mr. Samuel** | ⏳ Pending |
-| `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | ⏳ Pending |
-| `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | ⏳ Pending |
-| `shared` | Exceptions, value objects, global middleware, guards | **Christian** | ⏳ Pending |
+| `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | ✅ Completed |
+| `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | ✅ Completed |
+| `shared` | Exceptions, value objects, global middleware, guards | **Christian** | ✅ Completed |
+
+---
+
+## 📝 Recent Changes
+- **transfer-engine:** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
+- **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
 
 ---
 
