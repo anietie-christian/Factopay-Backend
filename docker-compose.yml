@@ -9,6 +9,7 @@ services:
       context: .
       target: development # Targets the dev stage for hot reloading and development
     container_name: factopay_api
+    command: npm run start:dev
     ports:
       - "${PORT:-3000}:3000"
     volumes:
