@@ -6,4 +6,4 @@ Fast · Secure · Near-Zero Fee Remittance from Europe & America to Africa.
 - Detailed system architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Complete database schema definition: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)
 - Team build guide: [FactoPay_Backend_Build_Guide.md](FactoPay_Backend_Build_Guide.md)
-- Modules status & integration updates: [src/modules/README.md](src/modules/README.md)
+- Modules status & integration updates: [src/modules/CHANGELOG.md](src/modules/CHANGELOG.md)
