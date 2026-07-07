@@ -6,7 +6,7 @@ This file tracks the ownership, development status, and recent changes of each b
 
 | Module | Scope / Bounded Context | Owner | Status |
 |---|---|---|---|
-| `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | 🔄 In Progress |
+| `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | ✅ Completed |
 | `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | 🔄 In Progress |
 | `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | ⏳ Pending |
 | `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | ⏳ Pending |
@@ -23,23 +23,30 @@ This file tracks the ownership, development status, and recent changes of each b
 
 ---
 
-## 📢 Integration Requests for Christian (Lead Dev)
+## 📢 Integration Requests for Christian (Lead Dev) [COMPLETED]
 
-To complete the end-to-end integration of the completed `auth-identity` module, Oscar requests the following components to be set up in the `shared` module:
+The integration requests to support the end-to-end integration of the completed `auth-identity` module are now successfully set up in the `shared` module:
 
-1. **`PrismaService`**:
+1. **`PrismaService`** (✅ Completed):
    - **Path**: `src/modules/shared/infrastructure/database/prisma.service.ts`
-   - **Details**: Expose a standard NestJS client wrapper for Prisma database connection so the `PrismaUserRepository` can resolve it.
-2. **`FactoPayException` Hierarchy**:
+   - **Details**: Exposed NestJS client wrapper for Prisma database connection.
+2. **`FactoPayException` Hierarchy** (✅ Completed):
    - **Path**: `src/modules/shared/domain/exceptions/`
-   - **Details**: Define the base class exceptions so we can map auth errors (like `EmailAlreadyExistsException`, `InvalidOtpException`) to standardized API error response bodies.
-3. **SMS & Email Transport Adapters**:
+   - **Details**: Added auth-specific exceptions (`EmailAlreadyExistsException`, `InvalidOtpException`, etc.) mapping to standard API error responses.
+3. **SMS & Email Transport Adapters** (✅ Completed):
    - **Path**: `src/modules/shared/infrastructure/notifications/`
-   - **Details**: Setup integration adapters for **SendGrid** (Email OTP) and **Twilio** (SMS OTP) so the OTP codes generated in `auth-identity` can be sent to the user.
+   - **Details**: Setup integration adapters for **SendGrid** (Email OTP) and **Twilio** (SMS OTP) to allow OTP code delivery.
 
 ---
 
 ## 🚀 Change Log
+
+### July 07, 2026
+- **Database & Prisma:** Defined User, UserProfile, AuthSession, and OtpCode models in `prisma/schema.prisma` and resolved the missing database URL config.
+- **Shared Kernel Core:** Implemented global `PrismaService` and registered global `SharedModule` to handle database injection across bounded contexts.
+- **Shared Kernel Exceptions:** Extended `FactoPayException` hierarchy with auth-related exceptions (`EmailAlreadyExistsException`, `InvalidOtpException`, etc.).
+- **Notifications Infrastructure:** Implemented mock SDK adapters for SendGrid (`EmailTransportAdapter`) and Twilio (`SmsTransportAdapter`) to handle OTP verification dispatches.
+- **Build Configurations:** Added `nest-cli.json` and `tsconfig.json` to project root and updated `package.json` with NestJS CLI, Passport, Bcrypt, and validation packages.
 
 ### July 03, 2026
 - **Git Branching:** Switched to the new `dev` branch.

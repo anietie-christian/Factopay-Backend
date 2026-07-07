@@ -51,3 +51,40 @@ export class RateLimitExceededException extends FactoPayException {
     super('RATE_LIMIT_EXCEEDED', message, 429);
   }
 }
+
+export class EmailAlreadyExistsException extends FactoPayException {
+  constructor(message = 'Email already registered.') {
+    super('EMAIL_ALREADY_REGISTERED', message, 409);
+  }
+}
+
+export class PhoneNumberAlreadyExistsException extends FactoPayException {
+  constructor(message = 'Phone number already registered.') {
+    super('PHONE_ALREADY_REGISTERED', message, 409);
+  }
+}
+
+export class InvalidOtpException extends FactoPayException {
+  constructor(message = 'Invalid or expired OTP code.') {
+    super('INVALID_OTP', message, 400);
+  }
+}
+
+export class UserNotFoundException extends FactoPayException {
+  constructor(message = 'User not found.') {
+    super('USER_NOT_FOUND', message, 404);
+  }
+}
+
+export class InvalidCredentialsException extends FactoPayException {
+  constructor(message = 'Invalid email or password.') {
+    super('INVALID_CREDENTIALS', message, 401);
+  }
+}
+
+export class AccountDeactivatedException extends FactoPayException {
+  constructor(message = 'Account is deactivated.') {
+    super('ACCOUNT_DEACTIVATED', message, 401);
+  }
+}
+

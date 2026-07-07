@@ -12,7 +12,6 @@ import { UpdateProfileUseCase } from './application/use-cases/update-profile.use
 import { JwtStrategy } from './infrastructure/strategy/jwt.strategy';
 import { USER_REPOSITORY_TOKEN } from './domain/repositories/user-repository.interface';
 import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.repository';
-import { PrismaService } from '../shared/infrastructure/database/prisma.service';
 
 @Module({
   imports: [
@@ -31,7 +30,6 @@ import { PrismaService } from '../shared/infrastructure/database/prisma.service'
     GetProfileUseCase,
     UpdateProfileUseCase,
     JwtStrategy,
-    PrismaService, // Used by PrismaUserRepository
     {
       provide: USER_REPOSITORY_TOKEN,
       useClass: PrismaUserRepository,
@@ -40,3 +38,4 @@ import { PrismaService } from '../shared/infrastructure/database/prisma.service'
   exports: [USER_REPOSITORY_TOKEN, JwtStrategy, PassportModule],
 })
 export class AuthIdentityModule {}
+
