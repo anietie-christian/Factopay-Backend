@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ----------------------------------------
+// SHARED ENUMS
+// ----------------------------------------
+
+enum WalletType {
+  USER
+  SETTLEMENT
+  FEE
+  RESERVE
+  PAYOUT
+  LIQUIDITY
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  REVENUE
+  EXPENSE
+}
+
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+// ----------------------------------------
+// FINANCIAL CORE DOMAIN
+// ----------------------------------------
+
+model Wallet {
+  id               String   @id @default(uuid()) @db.Uuid
+  user_id          String   @db.Uuid
+  currency         String   @db.VarChar(5)
+  wallet_type      WalletType
+  stellar_public_key String?  @db.VarChar(56)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @default(now()) @db.Timestamptz
+
+  accounts         LedgerAccount[]
+
+  @@unique([user_id, currency])
+  @@map("wallets")
+}
+
+model LedgerAccount {
+  id               String   @id @default(uuid()) @db.Uuid
+  wallet_id        String   @db.Uuid
+  account_type     AccountType
+  currency         String   @db.VarChar(5)
+  name             String   @db.VarChar(100)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  wallet           Wallet   @relation(fields: [wallet_id], references: [id])
+  entries          LedgerEntry[]
+
+  @@map("ledger_accounts")
+}
+
+model LedgerEntry {
+  id                String   @id @default(uuid()) @db.Uuid
+  transaction_id    String   @db.Uuid
+  ledger_account_id String   @db.Uuid
+  entry_type        EntryType
+  amount            Decimal  @db.Decimal(18, 4)
+  currency          String   @db.VarChar(5)
+  description       String   @db.VarChar(255)
+  reference_type    String?  @db.VarChar(30)
+  reference_id      String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  account           LedgerAccount @relation(fields: [ledger_account_id], references: [id])
+
+  @@index([ledger_account_id, created_at])
+  @@index([transaction_id])
+  @@map("ledger_entries")
+}
+
+enum TransferStatus {
+  CREATED
+  PENDING_KYC
+  FX_LOCKED
+  WALLET_DEBITED
+  BLOCKCHAIN_PENDING
+  COMPLETED
+  FAILED
+}
+
+model Transfer {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @map("user_id") @db.Uuid
+  amount          Decimal        @db.Decimal(18, 4)
+  currency        String         @db.VarChar(5)
+  status          TransferStatus @default(CREATED)
+  idempotencyKey  String         @unique @map("idempotency_key") @db.VarChar(255)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("transfers")
+}
+
+// ----------------------------------------
+// AUTH & USERS DOMAIN
+// ----------------------------------------
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique @db.VarChar(255)
+  phoneNumber     String   @unique @map("phone_number") @db.VarChar(20)
+  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  isEmailVerified Boolean  @default(false) @map("is_email_verified")
+  isPhoneVerified Boolean  @default(false) @map("is_phone_verified")
+  kycStatus       String   @default("UNVERIFIED") @map("kyc_status") @db.VarChar(20)
+  kycTier         String   @default("NONE") @map("kyc_tier") @db.VarChar(10)
+  role            String   @default("USER") @db.VarChar(20)
+  isActive        Boolean  @default(true) @map("is_active")
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  profile         UserProfile?
+  sessions        AuthSession[]
+  otpCodes        OtpCode[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @unique @map("user_id") @db.Uuid
+  firstName          String    @map("first_name") @db.VarChar(100)
+  lastName           String    @map("last_name") @db.VarChar(100)
+  dateOfBirth        DateTime? @map("date_of_birth") @db.Date
+  nationality        String?   @db.VarChar(3)
+  countryOfResidence String?   @map("country_of_residence") @db.VarChar(3)
+  addressLine1       String?   @map("address_line_1") @db.VarChar(255)
+  addressLine2       String?   @map("address_line_2") @db.VarChar(255)
+  city               String?   @db.VarChar(100)
+  postalCode         String?   @map("postal_code") @db.VarChar(20)
+  avatarUrl          String?   @map("avatar_url") @db.VarChar(500)
+  preferredCurrency  String    @default("EUR") @map("preferred_currency") @db.VarChar(3)
+  preferredLanguage  String    @default("en") @map("preferred_language") @db.VarChar(5)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model AuthSession {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  refreshTokenHash  String   @map("refresh_token_hash") @db.VarChar(255)
+  deviceFingerprint String?  @map("device_fingerprint") @db.VarChar(255)
+  ipAddress         String   @map("ip_address") @db.VarChar(45)
+  userAgent         String?  @map("user_agent") @db.Text
+  isRevoked         Boolean  @default(false) @map("is_revoked")
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_sessions")
+}
+
+model OtpCode {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  codeHash    String   @map("code_hash") @db.VarChar(255)
+  type        String   @db.VarChar(20) // EMAIL, SMS, TWO_FA
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5) @map("max_attempts")
+  isUsed      Boolean  @default(false) @map("is_used")
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otp_codes")
+}

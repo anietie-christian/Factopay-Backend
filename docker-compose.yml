@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------
+  # NestJS Application API Service
+  # ---------------------------------------------
+  api:
+    build:
+      context: .
+      target: development # Targets the dev stage for hot reloading and development
+    container_name: factopay_api
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules # Prevents host node_modules from overwriting container
+      - /usr/src/app/dist # Prevents container build output from leaking to host
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - factopay_network
+
+  # ---------------------------------------------
+  # Redis Cache & Queue Service
+  # ---------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: factopay_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - factopay_network
+
+volumes:
+  redisdata:
+    driver: local
+
+networks:
+  factopay_network:
+    driver: bridge
