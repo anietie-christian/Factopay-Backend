@@ -21,6 +21,7 @@ This file tracks the ownership, development status, and recent changes of each b
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
 - **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`.
+- **shared (API Gateway):** Christian successfully registered the global `ThrottlerGuard` using `@nestjs/throttler` in `app.module.ts`. Global API limit is set to 120 requests/min, while sensitive auth routes strictly override this to 10 requests/min to prevent brute forcing.
 - **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
 
 ---
@@ -48,6 +49,7 @@ The integration requests to support the end-to-end integration of the completed 
 - **Exception Handling:** Built and globally bound `FactoPayExceptionFilter` to format domain exceptions consistently.
 - **FX Rates Engine:** Integrated `ioredis` to manage caching. Built the `RedisService`, `GetLiveRatesUseCase`, and `LockFxQuoteUseCase` to lock FX quotes with strict 30s expiry. Updated `InitiateTransferUseCase` to enforce quote validation.
 - **Shared Kernel & Idempotency:** Implemented the `IdempotencyInterceptor` utilizing `SETNX` atomic locks in Redis. Created the `@RequiresIdempotency()` route decorator and applied it to the `transfers` endpoint to protect against duplicate payment requests.
+- **API Gateway Rate Limiting:** Enforced global DDOS & Brute-Force protection by integrating `ThrottlerModule`. Set global API threshold to 120 requests per minute and verified the strict 10 requests per minute limit on sensitive `auth` endpoints.
 - **Webhook Integrations & Resilience:** Implemented `WebhookSignatureMiddleware` for strict HMAC verification. Integrated `bullmq` and `@nestjs/bullmq` to queue inbound webhooks to prevent data loss. Configured custom backoff strategy (1m -> 5m -> 15m -> 1h -> DLQ) and exposed the DLQ admin dashboard via `@bull-board`. registered global `SharedModule` to handle database injection across bounded contexts.
 - **Shared Kernel Exceptions:** Extended `FactoPayException` hierarchy with auth-related exceptions (`EmailAlreadyExistsException`, `InvalidOtpException`, etc.).
 - **Notifications Infrastructure:** Implemented mock SDK adapters for SendGrid (`EmailTransportAdapter`) and Twilio (`SmsTransportAdapter`) to handle OTP verification dispatches.
