@@ -1,4 +1,6 @@
-import { Controller, Post, Body, Headers } from '@nestjs/common';
+import { Controller, Post, Body, Headers, UseInterceptors } from '@nestjs/common';
+import { RequiresIdempotency } from '../../shared/infrastructure/idempotency/requires-idempotency.decorator';
+import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor';
 import { InitiateTransferUseCase } from '../../application/use-cases/initiate-transfer.use-case';
 import { InitiateTransferDto } from '../../application/dtos/initiate-transfer.dto';
 import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
@@ -11,6 +13,8 @@ export class TransferController {
   @Post()
   @ApiOperation({ summary: 'Initiate a new transfer' })
   @ApiHeader({ name: 'idempotency-key', required: true })
+  @RequiresIdempotency()
+  @UseInterceptors(IdempotencyInterceptor)
   async initiateTransfer(
     @Body() dto: InitiateTransferDto,
     @Headers('idempotency-key') idempotencyKey: string,

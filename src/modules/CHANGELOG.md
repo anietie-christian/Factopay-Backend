@@ -13,15 +13,16 @@ This file tracks the ownership, development status, and recent changes of each b
 | `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Mr. Samuel** | ⏳ Pending |
 | `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | ✅ Completed |
 | `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | ✅ Completed |
-| `shared` | Exceptions, value objects, global middleware, guards | **Christian** | ✅ Completed |
+| `shared` | Exceptions, value objects, global middleware, guards, idempotency | **Christian** | ✅ Completed |
 
 ---
 
 ## 📝 Recent Changes
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
+- **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`.
 - **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
-- **gateway-integrations (Resilience):** Christian implemented a Webhook Retry System using **BullMQ**. Inbound webhooks are now queued with a strict custom exponential backoff (1m, 5m, 15m, 1h) and dropped into a Dead-Letter Queue (DLQ) after 5 failures. Included `@bull-board/nestjs` for Admin Dashboard UI visibility.
+
 ---
 
 ## 📢 Integration Requests for Christian (Lead Dev) [COMPLETED]
@@ -46,7 +47,11 @@ The integration requests to support the end-to-end integration of the completed 
 - **API Layer:** Successfully registered and exposed endpoints via `TransferController`, `RatesController`, and `WebhookController`.
 - **Exception Handling:** Built and globally bound `FactoPayExceptionFilter` to format domain exceptions consistently.
 - **FX Rates Engine:** Integrated `ioredis` to manage caching. Built the `RedisService`, `GetLiveRatesUseCase`, and `LockFxQuoteUseCase` to lock FX quotes with strict 30s expiry. Updated `InitiateTransferUseCase` to enforce quote validation.
-- **Webhook Integrations & Resilience:** Implemented `WebhookSignatureMiddleware` for strict HMAC verification. Integrated `bullmq` and `@nestjs/bullmq` to queue inbound webhooks to prevent data loss. Configured custom backoff strategy (1m -> 5m -> 15m -> 1h -> DLQ) and exposed the DLQ admin dashboard via `@bull-board`.
+- **Shared Kernel & Idempotency:** Implemented the `IdempotencyInterceptor` utilizing `SETNX` atomic locks in Redis. Created the `@RequiresIdempotency()` route decorator and applied it to the `transfers` endpoint to protect against duplicate payment requests.
+- **Webhook Integrations & Resilience:** Implemented `WebhookSignatureMiddleware` for strict HMAC verification. Integrated `bullmq` and `@nestjs/bullmq` to queue inbound webhooks to prevent data loss. Configured custom backoff strategy (1m -> 5m -> 15m -> 1h -> DLQ) and exposed the DLQ admin dashboard via `@bull-board`. registered global `SharedModule` to handle database injection across bounded contexts.
+- **Shared Kernel Exceptions:** Extended `FactoPayException` hierarchy with auth-related exceptions (`EmailAlreadyExistsException`, `InvalidOtpException`, etc.).
+- **Notifications Infrastructure:** Implemented mock SDK adapters for SendGrid (`EmailTransportAdapter`) and Twilio (`SmsTransportAdapter`) to handle OTP verification dispatches.
+- **Build Configurations:** Added `nest-cli.json` and `tsconfig.json` to project root and updated `package.json` with NestJS CLI, Passport, Bcrypt, and validation packages.
 
 ### July 07, 2026
 - **Database & Prisma:** Defined User, UserProfile, AuthSession, and OtpCode models in `prisma/schema.prisma` and resolved the missing database URL config.
