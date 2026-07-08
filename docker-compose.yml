@@ -15,6 +15,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules # Prevents host node_modules from overwriting container
+      - /usr/src/app/dist # Prevents container build output from leaking to host
     environment:
       NODE_ENV: development
       PORT: 3000
