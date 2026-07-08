@@ -115,8 +115,8 @@ model Transfer {
 model User {
   id              String   @id @default(uuid()) @db.Uuid
   email           String   @unique @db.VarChar(255)
-  phoneNumber     String   @unique @map("phone_number") @db.VarChar(20)
-  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  phoneNumber     String?  @unique @map("phone_number") @db.VarChar(20)
+  passwordHash    String?  @map("password_hash") @db.VarChar(255)
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   isPhoneVerified Boolean  @default(false) @map("is_phone_verified")
   kycStatus       String   @default("UNVERIFIED") @map("kyc_status") @db.VarChar(20)
@@ -127,9 +127,15 @@ model User {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
+  // MFA Config Fields
+  isMfaEnabled    Boolean  @default(false) @map("is_mfa_enabled")
+  mfaSecret       String?  @map("mfa_secret") @db.VarChar(255)
+  mfaBackupCodes  String[] @default([]) @map("mfa_backup_codes")
+
   profile         UserProfile?
   sessions        AuthSession[]
   otpCodes        OtpCode[]
+  socialAccounts  SocialAccount[]
 
   @@map("users")
 }
@@ -187,4 +193,17 @@ model OtpCode {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("otp_codes")
+}
+
+model SocialAccount {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  provider   String   @db.VarChar(20) // "GOOGLE" | "APPLE"
+  providerId String   @map("provider_id") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("social_accounts")
 }

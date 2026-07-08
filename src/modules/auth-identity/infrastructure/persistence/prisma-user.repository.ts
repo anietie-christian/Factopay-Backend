@@ -22,6 +22,9 @@ export class PrismaUserRepository implements IUserRepository {
       dbUser.lastLoginAt,
       dbUser.createdAt,
       dbUser.updatedAt,
+      dbUser.isMfaEnabled,
+      dbUser.mfaSecret,
+      dbUser.mfaBackupCodes,
     );
   }
 
@@ -40,6 +43,9 @@ export class PrismaUserRepository implements IUserRepository {
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      isMfaEnabled: user.isMfaEnabled,
+      mfaSecret: user.mfaSecret,
+      mfaBackupCodes: user.mfaBackupCodes,
     };
   }
 
@@ -67,6 +73,31 @@ export class PrismaUserRepository implements IUserRepository {
     return this.toDomain(dbUser);
   }
 
+  async findBySocialProvider(provider: string, providerId: string): Promise<User | null> {
+    const dbUser = await this.prisma.user.findFirst({
+      where: {
+        socialAccounts: {
+          some: {
+            provider,
+            providerId,
+          },
+        },
+      },
+    });
+    if (!dbUser) return null;
+    return this.toDomain(dbUser);
+  }
+
+  async linkSocialAccount(userId: string, provider: string, providerId: string): Promise<void> {
+    await this.prisma.socialAccount.create({
+      data: {
+        userId,
+        provider,
+        providerId,
+      },
+    });
+  }
+
   async save(user: User): Promise<User> {
     const data = this.toPersistence(user);
     const dbUser = await this.prisma.user.upsert({
@@ -83,6 +114,9 @@ export class PrismaUserRepository implements IUserRepository {
         isActive: data.isActive,
         lastLoginAt: data.lastLoginAt,
         updatedAt: data.updatedAt,
+        isMfaEnabled: data.isMfaEnabled,
+        mfaSecret: data.mfaSecret,
+        mfaBackupCodes: data.mfaBackupCodes,
       },
       create: data,
     });

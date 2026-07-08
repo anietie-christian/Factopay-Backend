@@ -12,7 +12,7 @@ export class LoginUseCase {
     private readonly jwtService: JwtService,
   ) {}
 
-  async execute(dto: LoginDto): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
+  async execute(dto: LoginDto): Promise<{ mfaRequired: boolean; mfaToken?: string; accessToken?: string; refreshToken?: string; userId?: string; email?: string; kycStatus?: string }> {
     const user = await this.userRepository.findByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -22,9 +22,26 @@ export class LoginUseCase {
       throw new UnauthorizedException('Account is deactivated');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.getPasswordHash());
+    const passwordHash = user.getPasswordHash();
+    if (!passwordHash) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, passwordHash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Check if MFA is enabled
+    if (user.isMfaEnabled) {
+      const mfaToken = this.jwtService.sign(
+        { sub: user.id, email: user.email, type: 'MFA_VERIFICATION' },
+        { expiresIn: '5m' }
+      );
+      return {
+        mfaRequired: true,
+        mfaToken,
+      };
     }
 
     // Update login timestamp
@@ -44,6 +61,7 @@ export class LoginUseCase {
     const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
 
     return {
+      mfaRequired: false,
       accessToken,
       refreshToken,
       userId: user.id,

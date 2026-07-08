@@ -9,6 +9,14 @@ import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
 import { RefreshTokenUseCase } from './application/use-cases/refresh-token.use-case';
 import { GetProfileUseCase } from './application/use-cases/get-profile.use-case';
 import { UpdateProfileUseCase } from './application/use-cases/update-profile.use-case';
+import { SetupMfaUseCase } from './application/use-cases/setup-mfa.use-case';
+import { EnableMfaUseCase } from './application/use-cases/enable-mfa.use-case';
+import { DisableMfaUseCase } from './application/use-cases/disable-mfa.use-case';
+import { VerifyMfaUseCase } from './application/use-cases/verify-mfa.use-case';
+import { SocialVerifyUseCase } from './application/use-cases/social-verify.use-case';
+import { CompleteSocialSignupUseCase } from './application/use-cases/complete-social-signup.use-case';
+import { TotpService } from './infrastructure/adapters/totp.service';
+import { SocialAuthService } from './infrastructure/adapters/social-auth.service';
 import { JwtStrategy } from './infrastructure/strategy/jwt.strategy';
 import { USER_REPOSITORY_TOKEN } from './domain/repositories/user-repository.interface';
 import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.repository';
@@ -29,6 +37,14 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
     RefreshTokenUseCase,
     GetProfileUseCase,
     UpdateProfileUseCase,
+    SetupMfaUseCase,
+    EnableMfaUseCase,
+    DisableMfaUseCase,
+    VerifyMfaUseCase,
+    SocialVerifyUseCase,
+    CompleteSocialSignupUseCase,
+    TotpService,
+    SocialAuthService,
     JwtStrategy,
     {
       provide: USER_REPOSITORY_TOKEN,

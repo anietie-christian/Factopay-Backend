@@ -16,8 +16,8 @@ export class User {
   constructor(
     public readonly id: string,
     public readonly email: string,
-    public readonly phoneNumber: string,
-    private passwordHash: string,
+    public readonly phoneNumber: string | null,
+    private passwordHash: string | null,
     public isEmailVerified: boolean,
     public isPhoneVerified: boolean,
     public kycStatus: KycStatus,
@@ -27,9 +27,12 @@ export class User {
     public lastLoginAt: Date | null,
     public createdAt: Date,
     public updatedAt: Date,
+    public isMfaEnabled: boolean = false,
+    public mfaSecret: string | null = null,
+    public mfaBackupCodes: string[] = [],
   ) {}
 
-  getPasswordHash(): string {
+  getPasswordHash(): string | null {
     return this.passwordHash;
   }
 
