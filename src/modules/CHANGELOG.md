@@ -21,7 +21,7 @@ This file tracks the ownership, development status, and recent changes of each b
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
 - **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
-
+- **gateway-integrations (Resilience):** Christian implemented a Webhook Retry System using **BullMQ**. Inbound webhooks are now queued with a strict custom exponential backoff (1m, 5m, 15m, 1h) and dropped into a Dead-Letter Queue (DLQ) after 5 failures. Included `@bull-board/nestjs` for Admin Dashboard UI visibility.
 ---
 
 ## 📢 Integration Requests for Christian (Lead Dev) [COMPLETED]
@@ -46,6 +46,7 @@ The integration requests to support the end-to-end integration of the completed 
 - **API Layer:** Successfully registered and exposed endpoints via `TransferController`, `RatesController`, and `WebhookController`.
 - **Exception Handling:** Built and globally bound `FactoPayExceptionFilter` to format domain exceptions consistently.
 - **FX Rates Engine:** Integrated `ioredis` to manage caching. Built the `RedisService`, `GetLiveRatesUseCase`, and `LockFxQuoteUseCase` to lock FX quotes with strict 30s expiry. Updated `InitiateTransferUseCase` to enforce quote validation.
+- **Webhook Integrations & Resilience:** Implemented `WebhookSignatureMiddleware` for strict HMAC verification. Integrated `bullmq` and `@nestjs/bullmq` to queue inbound webhooks to prevent data loss. Configured custom backoff strategy (1m -> 5m -> 15m -> 1h -> DLQ) and exposed the DLQ admin dashboard via `@bull-board`.
 
 ### July 07, 2026
 - **Database & Prisma:** Defined User, UserProfile, AuthSession, and OtpCode models in `prisma/schema.prisma` and resolved the missing database URL config.
