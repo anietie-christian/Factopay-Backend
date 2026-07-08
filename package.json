@@ -9,7 +9,8 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "db:migrate": "docker compose exec api npx prisma migrate dev"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
