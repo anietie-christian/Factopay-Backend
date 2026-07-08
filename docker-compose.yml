@@ -23,7 +23,7 @@ services:
       DIRECT_URL: ${DIRECT_URL}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-superSecretKeyChangeMeOnProduction98765!}
+      JWT_SECRET: ${JWT_SECRET}
       STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
     depends_on:
       redis:
