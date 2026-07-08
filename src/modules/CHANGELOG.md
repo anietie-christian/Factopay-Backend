@@ -18,7 +18,8 @@ This file tracks the ownership, development status, and recent changes of each b
 ---
 
 ## 📝 Recent Changes
-- **transfer-engine:** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
+- **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
+- **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
 - **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
 
 ---
@@ -40,6 +41,11 @@ The integration requests to support the end-to-end integration of the completed 
 ---
 
 ## 🚀 Change Log
+
+### July 08, 2026
+- **API Layer:** Successfully registered and exposed endpoints via `TransferController`, `RatesController`, and `WebhookController`.
+- **Exception Handling:** Built and globally bound `FactoPayExceptionFilter` to format domain exceptions consistently.
+- **FX Rates Engine:** Integrated `ioredis` to manage caching. Built the `RedisService`, `GetLiveRatesUseCase`, and `LockFxQuoteUseCase` to lock FX quotes with strict 30s expiry. Updated `InitiateTransferUseCase` to enforce quote validation.
 
 ### July 07, 2026
 - **Database & Prisma:** Defined User, UserProfile, AuthSession, and OtpCode models in `prisma/schema.prisma` and resolved the missing database URL config.

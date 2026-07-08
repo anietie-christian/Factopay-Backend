@@ -1,14 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { InitiateTransferDto } from '../dtos/initiate-transfer.dto';
-
+import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
+import { RedisService } from '../../../shared/infrastructure/cache/redis.service';
+import { FxQuoteExpiredException } from '../../../shared/domain/exceptions/factopay.exception';
 // Note: PrismaClient would normally be injected via the shared PrismaService
 // For the scope of this step, we are mocking the dependency structure.
 
 @Injectable()
 export class InitiateTransferUseCase {
-  constructor(private readonly prisma: any /* PrismaService */) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async execute(userId: string, dto: InitiateTransferDto, idempotencyKey: string) {
+    // 1. Verify the FX Quote
+    const quoteKey = `fx_quote:${dto.quoteId}`;
+    const quoteData = await this.redisService.get(quoteKey);
+    
+    if (!quoteData) {
+      throw new FxQuoteExpiredException();
+    }
+
     // 2. Create the Transfer record with status CREATED
     const transfer = await this.prisma.transfer.create({
       data: {
