@@ -8,8 +8,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Observable, of, throwError } from 'rxjs';
-import { tap, catchError } from 'rxjs/operators';
+import { Observable, of, throwError, from } from 'rxjs';
+import { mergeMap, catchError } from 'rxjs/operators';
 import { REQUIRES_IDEMPOTENCY_KEY } from './requires-idempotency.decorator';
 import { RedisService } from '../cache/redis.service';
 import { Request } from 'express';
@@ -65,7 +65,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     // 3. Proceed with the request and cache the result
     return next.handle().pipe(
-      tap(async (responseBody) => {
+      mergeMap(async (responseBody) => {
         // Cache the successful response
         await this.redisService.setWithExpiry(
           responseKey,
@@ -74,13 +74,19 @@ export class IdempotencyInterceptor implements NestInterceptor {
         );
         // Release the processing lock
         await this.redisService.delete(lockKey);
+        return responseBody;
       }),
       catchError((err) => {
         // If an error occurs, release the lock so the client can retry
-        this.redisService.delete(lockKey).catch((deleteErr) => {
-          this.logger.error(`Failed to delete idempotency lock for key: ${idempotencyKey}`, deleteErr);
-        });
-        return throwError(() => err);
+        return from(
+          this.redisService.delete(lockKey)
+            .catch((deleteErr) => {
+              this.logger.error(`Failed to delete idempotency lock for key: ${idempotencyKey}`, deleteErr);
+            })
+            .then(() => {
+              throw err;
+            })
+        );
       }),
     );
   }

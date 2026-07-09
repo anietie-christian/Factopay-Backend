@@ -3,10 +3,17 @@
 # ==========================================
 FROM node:20-alpine AS development
 
+# Accept DATABASE_URL as a build-time argument
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
 WORKDIR /usr/src/app
 
 # Copy package descriptors first to leverage Docker layer caching
 COPY package*.json ./
+
+# Install compilation build dependencies and runtime libraries for Prisma/bcrypt
+RUN apk add --no-cache make gcc g++ python3 openssl libc6-compat
 
 # Install all dependencies (including devDependencies)
 RUN npm install

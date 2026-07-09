@@ -1,12 +1,12 @@
-import { Module, Global } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { PrismaService } from './infrastructure/database/prisma.service';
-import { EmailTransportAdapter } from './infrastructure/notifications/email-transport.adapter';
-import { SmsTransportAdapter } from './infrastructure/notifications/sms-transport.adapter';
 import { RedisService } from './infrastructure/cache/redis.service';
+import { RolesGuard } from './infrastructure/guards/roles.guard';
+import { AdminAuditService } from './infrastructure/services/admin-audit.service';
 
 @Global()
 @Module({
-  providers: [PrismaService, EmailTransportAdapter, SmsTransportAdapter, RedisService],
-  exports: [PrismaService, EmailTransportAdapter, SmsTransportAdapter, RedisService],
+  providers: [PrismaService, RedisService, RolesGuard, AdminAuditService],
+  exports: [PrismaService, RedisService, RolesGuard, AdminAuditService],
 })
-export class SharedModule {}
+export class SharedModule { }

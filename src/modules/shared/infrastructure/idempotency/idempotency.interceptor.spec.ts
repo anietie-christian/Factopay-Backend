@@ -17,7 +17,7 @@ describe('IdempotencyInterceptor', () => {
       get: jest.fn(),
       setNxWithExpiry: jest.fn(),
       setWithExpiry: jest.fn(),
-      delete: jest.fn(),
+      delete: jest.fn().mockResolvedValue(true),
     };
 
     const reflectorMock = {
@@ -40,7 +40,10 @@ describe('IdempotencyInterceptor', () => {
   it('should pass through if route does not require idempotency', async () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const mockCallHandler = { handle: jest.fn().mockReturnValue(of('success')) };
-    const mockExecutionContext = {} as ExecutionContext;
+    const mockExecutionContext = {
+      getHandler: jest.fn(),
+      getClass: jest.fn(),
+    } as unknown as ExecutionContext;
 
     const result = await interceptor.intercept(mockExecutionContext, mockCallHandler);
     await lastValueFrom(result);
@@ -70,7 +73,7 @@ describe('IdempotencyInterceptor', () => {
     });
 
     it('should throw BadRequestException if header is missing', async () => {
-      mockExecutionContext.switchToHttp().mockReturnValue({
+      mockExecutionContext.switchToHttp.mockReturnValue({
         getRequest: jest.fn().mockReturnValue({ headers: {} }),
       });
 

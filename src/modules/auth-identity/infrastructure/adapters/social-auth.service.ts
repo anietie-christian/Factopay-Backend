@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
+import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 
@@ -12,13 +13,16 @@ export interface SocialProfile {
 
 @Injectable()
 export class SocialAuthService {
-  private readonly googleClient = new OAuth2Client();
+  private readonly googleClient: OAuth2Client;
   private readonly appleJwksClient = jwksClient({
     jwksUri: 'https://appleid.apple.com/auth/keys',
     cache: true,
     rateLimit: true,
   });
 
+  constructor(private readonly configService: ConfigService) {
+    this.googleClient = new OAuth2Client();
+  }
   /**
    * Verifies the social token and returns user profile details.
    */
@@ -35,8 +39,7 @@ export class SocialAuthService {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: token,
-        // Optional: verify against client ID if configured
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
       });
       const payload = ticket.getPayload();
       if (!payload || !payload.email) {
@@ -67,8 +70,7 @@ export class SocialAuthService {
 
       const payload = jwt.verify(token, signingKey, {
         issuer: 'https://appleid.apple.com',
-        // Optional: verify against audience if configured
-        audience: process.env.APPLE_CLIENT_ID,
+        audience: this.configService.get<string>('APPLE_CLIENT_ID'),
       }) as any;
 
       if (!payload || !payload.email) {

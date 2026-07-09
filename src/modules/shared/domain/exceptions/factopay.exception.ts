@@ -88,3 +88,9 @@ export class AccountDeactivatedException extends FactoPayException {
   }
 }
 
+export class KycLimitExceededException extends FactoPayException {
+  constructor(message = 'KYC monthly transfer limit exceeded.') {
+    super('KYC_LIMIT_EXCEEDED', message, 403);
+  }
+}
+

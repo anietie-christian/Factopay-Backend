@@ -1,13 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { SharedModule } from './modules/shared/shared.module';
 import { AuthIdentityModule } from './modules/auth-identity/auth-identity.module';
 import { TransferEngineModule } from './modules/transfer-engine/transfer-engine.module';
 import { GatewayIntegrationsModule } from './modules/gateway-integrations/gateway-integrations.module';
+import { KycManagementModule } from './modules/kyc-management/kyc-management.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -19,6 +24,7 @@ import { GatewayIntegrationsModule } from './modules/gateway-integrations/gatewa
     AuthIdentityModule,
     TransferEngineModule,
     GatewayIntegrationsModule,
+    KycManagementModule,
   ],
   controllers: [],
   providers: [
@@ -28,6 +34,4 @@ import { GatewayIntegrationsModule } from './modules/gateway-integrations/gatewa
     },
   ],
 })
-export class AppModule {}
-
-
+export class AppModule { }
