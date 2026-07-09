@@ -4,6 +4,9 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './infrastructure/controllers/auth.controller';
 import { ConfigService } from '@nestjs/config';
 import { UserController } from './infrastructure/controllers/user.controller';
+import { AdminUsersController } from './infrastructure/controllers/admin-users.controller';
+import { AdminDashboardController } from './infrastructure/controllers/admin-dashboard.controller';
+
 import { RegisterUserUseCase } from './application/use-cases/register-user.use-case';
 import { LoginUseCase } from './application/use-cases/login.use-case';
 import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
@@ -16,6 +19,16 @@ import { DisableMfaUseCase } from './application/use-cases/disable-mfa.use-case'
 import { VerifyMfaUseCase } from './application/use-cases/verify-mfa.use-case';
 import { SocialVerifyUseCase } from './application/use-cases/social-verify.use-case';
 import { CompleteSocialSignupUseCase } from './application/use-cases/complete-social-signup.use-case';
+
+// Admin Use Cases
+import { AdminListUsersUseCase } from './application/use-cases/admin-list-users.use-case';
+import { AdminGetUserDetailsUseCase } from './application/use-cases/admin-get-user-details.use-case';
+import { AdminSuspendUserUseCase } from './application/use-cases/admin-suspend-user.use-case';
+import { AdminUnsuspendUserUseCase } from './application/use-cases/admin-unsuspend-user.use-case';
+import { AdminUpdateRoleUseCase } from './application/use-cases/admin-update-role.use-case';
+import { AdminDashboardOverviewUseCase } from './application/use-cases/admin-dashboard-overview.use-case';
+import { AdminGetAuditLogUseCase } from './application/use-cases/admin-get-audit-log.use-case';
+
 import { TotpService } from './infrastructure/adapters/totp.service';
 import { SocialAuthService } from './infrastructure/adapters/social-auth.service';
 import { JwtStrategy } from './infrastructure/strategy/jwt.strategy';
@@ -33,8 +46,9 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController, UserController],
+  controllers: [AuthController, UserController, AdminUsersController, AdminDashboardController],
   providers: [
+    // User endpoints Use Cases
     RegisterUserUseCase,
     LoginUseCase,
     VerifyOtpUseCase,
@@ -47,6 +61,15 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
     VerifyMfaUseCase,
     SocialVerifyUseCase,
     CompleteSocialSignupUseCase,
+    // Admin endpoints Use Cases
+    AdminListUsersUseCase,
+    AdminGetUserDetailsUseCase,
+    AdminSuspendUserUseCase,
+    AdminUnsuspendUserUseCase,
+    AdminUpdateRoleUseCase,
+    AdminDashboardOverviewUseCase,
+    AdminGetAuditLogUseCase,
+    // Adapters/Infrastructure
     TotpService,
     SocialAuthService,
     JwtStrategy,

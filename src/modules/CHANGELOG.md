@@ -2,22 +2,22 @@
 
 This file tracks the ownership, development status, and recent changes of each bounded context module within `src/modules/`.
 
-## 📋 Module Assignment & Status
+## Module Assignment & Status
 
 | Module | Scope / Bounded Context | Owner | Status |
 |---|---|---|---|
-| `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | ✅ Completed |
-| `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | ✅ Completed |
-| `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | ⏳ Pending |
-| `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | ⏳ Pending |
-| `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Mr. Samuel** | ⏳ Pending |
-| `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | ✅ Completed |
-| `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | ✅ Completed |
-| `shared` | Exceptions, value objects, global middleware, guards, idempotency | **Christian** | ✅ Completed |
+| `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | Completed |
+| `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | Completed |
+| `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | Pending |
+| `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | Pending |
+| `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Mr. Samuel** | Pending |
+| `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | Completed |
+| `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | Completed |
+| `shared` | Exceptions, value objects, global middleware, guards, idempotency | **Christian** | Completed |
 
 ---
 
-## 📝 Recent Changes
+## Recent Changes
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
 - **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`. Refactored RxJS pipeline using `mergeMap` and `from` to resolve Redis transactions synchronously, repairing test suite failures.
@@ -29,23 +29,23 @@ This file tracks the ownership, development status, and recent changes of each b
 
 ---
 
-## 📢 Integration Requests for Christian (Lead Dev) [COMPLETED]
+## Integration Requests for Christian (Lead Dev) [COMPLETED]
 
 The integration requests to support the end-to-end integration of the completed `auth-identity` module are now successfully set up in the `shared` module:
 
-1. **`PrismaService`** (✅ Completed):
+1. **`PrismaService`** (Completed):
    - **Path**: `src/modules/shared/infrastructure/database/prisma.service.ts`
    - **Details**: Exposed NestJS client wrapper for Prisma database connection.
-2. **`FactoPayException` Hierarchy** (✅ Completed):
+2. **`FactoPayException` Hierarchy** (Completed):
    - **Path**: `src/modules/shared/domain/exceptions/`
    - **Details**: Added auth-specific exceptions (`EmailAlreadyExistsException`, `InvalidOtpException`, etc.) mapping to standard API error responses.
-3. **SMS & Email Transport Adapters** (✅ Completed):
+3. **SMS & Email Transport Adapters** (Completed):
    - **Path**: `src/modules/shared/infrastructure/notifications/`
    - **Details**: Setup integration adapters for **SendGrid** (Email OTP) and **Twilio** (SMS OTP) to allow OTP code delivery.
 
 ---
 
-## 🚀 Change Log
+## Change Log
 
 ### July 09, 2026
 - **KYC Management Bounded Context**: Completed the KYC management module including domain events, Prisma repository implementation, mock and production Sumsub providers, application use cases (`SubmitBasicProfile`, `InitiateKycCheck`, `GetKycStatus`, `HandleKycWebhook`), and controller endpoints. Grouped endpoints in Swagger under the 'KYC' tag and corrected route prefix.

@@ -30,3 +30,20 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.swp
+
+# Terraform Files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Terraform Secrets
+*.tfvars
+*.tfvars.json
