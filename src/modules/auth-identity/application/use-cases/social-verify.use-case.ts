@@ -1,5 +1,6 @@
 import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
+import { randomUUID } from 'crypto';
 import { SocialAuthService } from '../../infrastructure/adapters/social-auth.service';
 import { User, Role, KycStatus } from '../../domain/models/user.model';
 import { JwtService } from '@nestjs/jwt';
@@ -23,7 +24,7 @@ export class SocialVerifyUseCase {
     private readonly userRepository: IUserRepository,
     private readonly socialAuthService: SocialAuthService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async execute(provider: 'GOOGLE' | 'APPLE', token: string): Promise<SocialVerifyResult> {
     // 1. Verify token with provider
@@ -45,7 +46,7 @@ export class SocialVerifyUseCase {
     }
 
     // 4. Create new user account with no password/phone (PENDING signup stage)
-    const newUserId = crypto.randomUUID();
+    const newUserId = randomUUID();
     const newUser = new User(
       newUserId,
       socialProfile.email,
@@ -63,7 +64,7 @@ export class SocialVerifyUseCase {
     );
 
     const savedUser = await this.userRepository.save(newUser);
-    
+
     // Link social account
     await this.userRepository.linkSocialAccount(savedUser.id, provider, socialProfile.providerId);
 

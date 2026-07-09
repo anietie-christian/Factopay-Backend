@@ -24,7 +24,7 @@ import { webhookBackoffStrategy } from './infrastructure/bullmq/custom-backoff';
     }),
     BullBoardModule.forFeature({
       name: 'webhook-dlq',
-      adapter: BullMQAdapter,
+      adapter: BullMQAdapter as any,
     }),
   ],
   controllers: [WebhookController],

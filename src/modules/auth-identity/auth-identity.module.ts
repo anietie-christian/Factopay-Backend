@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './infrastructure/controllers/auth.controller';
+import { ConfigService } from '@nestjs/config';
 import { UserController } from './infrastructure/controllers/user.controller';
 import { RegisterUserUseCase } from './application/use-cases/register-user.use-case';
 import { LoginUseCase } from './application/use-cases/login.use-case';
@@ -24,9 +25,12 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'fallbackSecretKey123!',
-      signOptions: { expiresIn: '15m' },
+    JwtModule.registerAsync({
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '15m' },
+      }),
+      inject: [ConfigService],
     }),
   ],
   controllers: [AuthController, UserController],
@@ -53,5 +57,4 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
   ],
   exports: [USER_REPOSITORY_TOKEN, JwtStrategy, PassportModule],
 })
-export class AuthIdentityModule {}
-
+export class AuthIdentityModule { }

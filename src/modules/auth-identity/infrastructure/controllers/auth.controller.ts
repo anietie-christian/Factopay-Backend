@@ -35,7 +35,7 @@ export class AuthController {
     private readonly verifyMfaUseCase: VerifyMfaUseCase,
     private readonly socialVerifyUseCase: SocialVerifyUseCase,
     private readonly completeSocialSignupUseCase: CompleteSocialSignupUseCase,
-  ) {}
+  ) { }
 
   @Post('register')
   @Throttle({ default: { limit: 10, ttl: 60000 } })

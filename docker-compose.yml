@@ -8,8 +8,10 @@ services:
     build:
       context: .
       target: development # Targets the dev stage for hot reloading and development
+      args:
+        - DATABASE_URL=${DATABASE_URL}
     container_name: factopay_api
-    command: sh -c "npx prisma migrate deploy && npm run start:dev"
+    command: sh -c "npx --no-install prisma migrate deploy && npm run start:dev"
     ports:
       - "${PORT:-3000}:3000"
     volumes:

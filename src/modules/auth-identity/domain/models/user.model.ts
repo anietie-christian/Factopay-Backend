@@ -13,6 +13,22 @@ export enum KycStatus {
 }
 
 export class User {
+  public profile?: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth: Date | null;
+    nationality: string | null;
+    countryOfResidence: string | null;
+    addressLine1: string | null;
+    addressLine2?: string | null;
+    city: string | null;
+    postalCode: string | null;
+  };
+  public socialAccounts?: {
+    provider: string;
+    providerId: string;
+  }[];
+
   constructor(
     public readonly id: string,
     public readonly email: string,

@@ -1,0 +1,60 @@
+import { Inject, Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { IKycRepository } from '../../domain/repositories/kyc.repository.interface';
+import { KYC_REPOSITORY_TOKEN } from '../../domain/repositories/kyc.repository.interface';
+import * as crypto from 'crypto';
+import { SumsubWebhookDto } from '../dtos/sumsub-webhook.dto';
+import { KycAttemptStatus } from '../../domain/models/kyc-attempt.model';
+
+@Injectable()
+export class HandleKycWebhookUseCase {
+  constructor(
+    @Inject(KYC_REPOSITORY_TOKEN)
+    private readonly kycRepository: IKycRepository,
+    private readonly configService: ConfigService,
+  ) { }
+
+  async execute(rawBody: string, signatureHeader: string, payload: SumsubWebhookDto): Promise<{ success: boolean }> {
+    // As per SECURITY_ARCHITECTURE.md, this validation is critical.
+    const webhookSecret = this.configService.get<string>('SUMSUB_WEBHOOK_SECRET');
+
+    if (webhookSecret && signatureHeader) {
+      const computedHash = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(rawBody)
+        .digest('hex');
+
+      if (computedHash !== signatureHeader) {
+        throw new UnauthorizedException('Invalid Sumsub webhook signature.');
+      }
+    }
+
+    if (payload.type !== 'applicantReviewed') {
+      // We only care about the final review status for this use case.
+      return { success: true };
+    }
+
+    // Find the attempt by the provider's external ID, which is more reliable.
+    const attempt = await this.kycRepository.findAttemptByExternalId(payload.applicantId);
+    if (!attempt) {
+      throw new BadRequestException(`Verification attempt with external ID ${payload.applicantId} not found.`);
+    }
+
+    const isApproved = payload.reviewResult?.reviewAnswer === 'GREEN';
+    const status = isApproved ? KycAttemptStatus.APPROVED : KycAttemptStatus.REJECTED;
+    const reason = payload.reviewResult?.moderationComment || payload.reviewResult?.rejectLabels?.join(', ') || null;
+
+    // Update the attempt record
+    await this.kycRepository.updateVerificationAttempt(attempt.id, status, reason);
+
+    // Update the user's KYC status and tier based on the outcome
+    if (isApproved) {
+      // As per the plan, successful Sumsub check moves user to TIER_2
+      await this.kycRepository.updateUserKyc(attempt.userId, 'APPROVED', 'TIER_2');
+    } else {
+      await this.kycRepository.updateUserKyc(attempt.userId, 'REJECTED', 'NONE');
+    }
+
+    return { success: true };
+  }
+}

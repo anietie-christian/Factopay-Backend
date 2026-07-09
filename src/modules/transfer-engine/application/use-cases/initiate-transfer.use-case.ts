@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InitiateTransferDto } from '../dtos/initiate-transfer.dto';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { RedisService } from '../../../shared/infrastructure/cache/redis.service';
-import { FxQuoteExpiredException } from '../../../shared/domain/exceptions/factopay.exception';
+import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../../shared/domain/exceptions/factopay.exception';
 // Note: PrismaClient would normally be injected via the shared PrismaService
 // For the scope of this step, we are mocking the dependency structure.
 
@@ -34,9 +34,60 @@ export class InitiateTransferUseCase {
     });
 
     // 3. [OSCAR'S DOMAIN INJECTION POINT]
-    // Here we will call the KycManagementModule to ensure the user is APPROVED
-    // e.g. await this.kycService.verifyUserIsApproved(userId);
-    // If not approved, throw KycNotApprovedException.
+    // Verify the user is KYC approved and has enough remaining limit for this transfer
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new UserNotFoundException();
+    }
+    if (user.kycStatus !== 'APPROVED') {
+      throw new KycNotApprovedException('User KYC is not approved.');
+    }
+
+    let monthlyLimit: number;
+    switch (user.kycTier) {
+      case 'TIER_1':
+        monthlyLimit = 1000;
+        break;
+      case 'TIER_2':
+        monthlyLimit = 10000;
+        break;
+      case 'TIER_3':
+        monthlyLimit = -1; // Unlimited
+        break;
+      default:
+        monthlyLimit = 0; // Tier 0 (NONE)
+    }
+
+    if (monthlyLimit === 0) {
+      throw new KycNotApprovedException('Unverified accounts cannot perform transfers.');
+    }
+
+    if (monthlyLimit > 0) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const monthlyTransfers = await this.prisma.transfer.aggregate({
+        where: {
+          userId,
+          status: 'COMPLETED',
+          createdAt: {
+            gte: startOfMonth,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+
+      const totalTransferred = Number(monthlyTransfers._sum.amount || 0);
+      const newTotal = totalTransferred + Number(dto.amount);
+      if (newTotal > monthlyLimit) {
+        throw new KycLimitExceededException(`Monthly KYC transfer limit of €${monthlyLimit} exceeded.`);
+      }
+    }
 
     // 4. Open a Prisma $transaction
     await this.prisma.$transaction(async (tx) => {

@@ -4,6 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ----------------------------------------
@@ -136,6 +138,8 @@ model User {
   sessions        AuthSession[]
   otpCodes        OtpCode[]
   socialAccounts  SocialAccount[]
+  kycDocuments    KycDocument[]
+  kycAttempts     KycVerificationAttempt[]
 
   @@map("users")
 }
@@ -206,4 +210,47 @@ model SocialAccount {
 
   @@unique([provider, providerId])
   @@map("social_accounts")
+}
+
+enum KycDocumentType {
+  GOVERNMENT_ID
+  PASSPORT
+  SELFIE
+  PROOF_OF_ADDRESS
+  SOURCE_OF_FUNDS
+}
+
+enum KycDocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model KycDocument {
+  id              String            @id @default(uuid()) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  documentType    KycDocumentType   @map("document_type")
+  documentUrl     String            @map("document_url") @db.VarChar(500)
+  status          KycDocumentStatus @default(PENDING)
+  rejectionReason String?           @map("rejection_reason") @db.VarChar(255)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime          @default(now()) @map("updated_at") @db.Timestamptz
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("kyc_documents")
+}
+
+model KycVerificationAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  provider   String   @db.VarChar(50) // "SUMSUB" | "MOCK"
+  externalId String?  @map("external_id") @db.VarChar(100)
+  status     String   @db.VarChar(20) // "INITIATED" | "APPROVED" | "REJECTED"
+  reason     String?  @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("kyc_verification_attempts")
 }

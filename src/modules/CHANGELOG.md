@@ -7,7 +7,7 @@ This file tracks the ownership, development status, and recent changes of each b
 | Module | Scope / Bounded Context | Owner | Status |
 |---|---|---|---|
 | `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | ✅ Completed |
-| `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | 🔄 In Progress |
+| `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | ✅ Completed |
 | `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | ⏳ Pending |
 | `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | ⏳ Pending |
 | `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Mr. Samuel** | ⏳ Pending |
@@ -20,9 +20,12 @@ This file tracks the ownership, development status, and recent changes of each b
 ## 📝 Recent Changes
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
-- **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`.
+- **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`. Refactored RxJS pipeline using `mergeMap` and `from` to resolve Redis transactions synchronously, repairing test suite failures.
+- **shared (Redis Service):** Christian/Oscar registered and exported `RedisService` in `SharedModule` to fix dependency injection errors in consumer modules like `TransferEngineModule`.
 - **shared (API Gateway):** Christian successfully registered the global `ThrottlerGuard` using `@nestjs/throttler` in `app.module.ts`. Global API limit is set to 120 requests/min, while sensitive auth routes strictly override this to 10 requests/min to prevent brute forcing.
 - **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
+- **kyc-management (State Machine & Webhooks):** Oscar completed the `kyc-management` bounded context. Set up `SumsubProviderAdapter` and `SumsubMockAdapter` conditionally, implemented endpoints for profile submission, verification initiation, status check, and webhook signatures. Grouped under the `KYC` tag in Swagger and fixed route prefix.
+- **transfer-engine (KYC Wiring):** Oscar/Christian wired up the `InitiateTransferUseCase` to check user `kycStatus` and enforce monthly transfer limits matching the user's `kycTier`.
 
 ---
 
@@ -43,6 +46,13 @@ The integration requests to support the end-to-end integration of the completed 
 ---
 
 ## 🚀 Change Log
+
+### July 09, 2026
+- **KYC Management Bounded Context**: Completed the KYC management module including domain events, Prisma repository implementation, mock and production Sumsub providers, application use cases (`SubmitBasicProfile`, `InitiateKycCheck`, `GetKycStatus`, `HandleKycWebhook`), and controller endpoints. Grouped endpoints in Swagger under the 'KYC' tag and corrected route prefix.
+- **Shared & Redis Service**: Registered and exported `RedisService` globally in `SharedModule` to make it accessible to all importing modules.
+- **Shared Exceptions**: Added `KycLimitExceededException` (HTTP 403) to represent users exceeding their monthly tier-based transfer limits.
+- **Transfer Engine Integration**: Wired the `InitiateTransferUseCase` to validate the user's `kycStatus` and calculate monthly transfer limits, enforcing them based on the user's `kycTier`.
+- **Idempotency & Interceptor Tests**: Patched `IdempotencyInterceptor` to resolve async race conditions by replacing the unawaited `tap` operator with `mergeMap` and `from`. Fixed the idempotency test suite.
 
 ### July 08, 2026
 - **API Layer:** Successfully registered and exposed endpoints via `TransferController`, `RatesController`, and `WebhookController`.
