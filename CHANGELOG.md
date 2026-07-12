@@ -14,5 +14,5 @@
 
 ### Fixed
 - **Cross-Currency Validation Bug**: Fixed the fundamental design flaw where the ledger rejected any cross-currency transfers due to mixed-currency balancing.
-- **Idempotency Race Condition**: Replaced unsafe `findFirst` and application-level retry loops with atomic database locks and unique constraints.
+- **Idempotency Race Condition**: Replaced unsafe `findFirst` and application-level retry loops with atomic database locks and application-level idempotency check via `findFirst` inside the lock scope.
 - **Zero-Amount Transfers**: Added explicit validation in the double-entry engine to reject zero or negative amount entries.
