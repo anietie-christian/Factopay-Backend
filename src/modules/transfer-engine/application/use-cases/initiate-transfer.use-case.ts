@@ -1,16 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InitiateTransferDto } from '../dtos/initiate-transfer.dto';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { RedisService } from '../../../shared/infrastructure/cache/redis.service';
 import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../../shared/domain/exceptions/factopay.exception';
-// Note: PrismaClient would normally be injected via the shared PrismaService
-// For the scope of this step, we are mocking the dependency structure.
+import { SubmitSettlementUseCase } from '../../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
 
 @Injectable()
 export class InitiateTransferUseCase {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly submitSettlementUseCase: SubmitSettlementUseCase,
   ) {}
 
   async execute(userId: string, dto: InitiateTransferDto, idempotencyKey: string) {
@@ -105,6 +105,45 @@ export class InitiateTransferUseCase {
       });
     });
 
-    return { success: true, transferId: transfer.id };
+    // 8. Resolve recipient's Stellar public key for on-chain payout
+    const recipientWallet = await this.prisma.stellarWallet.findUnique({
+      where: { userId: dto.recipientId },
+    });
+    if (!recipientWallet) {
+      // Mark as FAILED since payout destination is missing wallet configuration
+      await this.prisma.transfer.update({
+        where: { id: transfer.id },
+        data: { status: 'FAILED' },
+      });
+      throw new BadRequestException('Recipient does not have a provisioned Stellar wallet');
+    }
+
+    try {
+      // 9. Submit the blockchain settlement leg outside database transaction lock
+      const settlement = await this.submitSettlementUseCase.execute({
+        transferId: transfer.id,
+        destinationPublicKey: recipientWallet.publicKey,
+        amount: dto.amount,
+        memo: `FW-${transfer.id.slice(0, 8)}`,
+        adminId: 'SYSTEM',
+        ipAddress: '127.0.0.1',
+      });
+
+      // 10. Update final status based on gateway confirmation
+      const finalStatus = settlement.status === 'SUCCESS' ? 'COMPLETED' : 'BLOCKCHAIN_PENDING';
+      await this.prisma.transfer.update({
+        where: { id: transfer.id },
+        data: { status: finalStatus },
+      });
+
+      return { success: true, transferId: transfer.id, status: finalStatus };
+    } catch (error) {
+      // Record failure state
+      await this.prisma.transfer.update({
+        where: { id: transfer.id },
+        data: { status: 'FAILED' },
+      });
+      throw error;
+    }
   }
 }

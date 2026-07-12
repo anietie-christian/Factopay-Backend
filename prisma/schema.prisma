@@ -274,3 +274,40 @@ model AdminAuditLog {
   @@map("admin_audit_logs")
 }
 
+// ----------------------------------------
+// BLOCKCHAIN SETTLEMENT DOMAIN
+// ----------------------------------------
+
+model BlockchainTransaction {
+  id            String   @id @default(uuid()) @db.Uuid
+  transferId    String   @unique @map("transfer_id") @db.Uuid
+  sourceAddress String   @map("source_address") @db.VarChar(56)
+  destAddress   String   @map("dest_address") @db.VarChar(56)
+  amount        Decimal  @db.Decimal(18, 4)
+  assetCode     String   @default("USDC") @map("asset_code") @db.VarChar(12)
+  memo          String?  @db.VarChar(64)
+  txHash        String?  @unique @map("tx_hash") @db.VarChar(64)
+  ledger        Int?
+  status        String   @db.VarChar(25) // PENDING, SUCCESS, FAILED, PENDING_VERIFICATION
+  errorCode     String?  @map("error_code") @db.VarChar(40)
+  errorMessage  String?  @map("error_message") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@map("blockchain_transactions")
+}
+
+model StellarWallet {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  publicKey       String   @unique @map("public_key") @db.VarChar(56)
+  encryptedSecret String   @map("encrypted_secret") @db.Text
+  hasTrustline    Boolean  @default(false) @map("has_trustline")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("stellar_wallets")
+}
+

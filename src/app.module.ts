@@ -7,6 +7,7 @@ import { AuthIdentityModule } from './modules/auth-identity/auth-identity.module
 import { TransferEngineModule } from './modules/transfer-engine/transfer-engine.module';
 import { GatewayIntegrationsModule } from './modules/gateway-integrations/gateway-integrations.module';
 import { KycManagementModule } from './modules/kyc-management/kyc-management.module';
+import { BlockchainSettlementModule } from './modules/blockchain-settlement/blockchain-settlement.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { KycManagementModule } from './modules/kyc-management/kyc-management.mod
     TransferEngineModule,
     GatewayIntegrationsModule,
     KycManagementModule,
+    BlockchainSettlementModule,
   ],
   controllers: [],
   providers: [

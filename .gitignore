@@ -46,4 +46,7 @@ terraform.rc
 
 # Terraform Secrets
 *.tfvars
-*.tfvars.json
+*.tfvars.json
+
+# Seeding Scripts
+/prisma/seed.ts
