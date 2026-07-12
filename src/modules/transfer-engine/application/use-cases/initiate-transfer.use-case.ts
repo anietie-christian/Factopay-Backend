@@ -4,6 +4,9 @@ import { PrismaService } from '../../../shared/infrastructure/database/prisma.se
 import { RedisService } from '../../../shared/infrastructure/cache/redis.service';
 import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../../shared/domain/exceptions/factopay.exception';
 import { SubmitSettlementUseCase } from '../../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
+import { PostLedgerTransactionUseCase } from '../../../wallet-ledger/application/use-cases/post-ledger-transaction.use-case';
+import { EntryType, ProposedEntry } from '../../../wallet-ledger/domain/services/double-entry.engine';
+import { Decimal } from 'decimal.js';
 
 @Injectable()
 export class InitiateTransferUseCase {
@@ -11,6 +14,7 @@ export class InitiateTransferUseCase {
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     private readonly submitSettlementUseCase: SubmitSettlementUseCase,
+    private readonly postLedgerTransactionUseCase: PostLedgerTransactionUseCase,
   ) {}
 
   async execute(userId: string, dto: InitiateTransferDto, idempotencyKey: string) {
@@ -21,6 +25,12 @@ export class InitiateTransferUseCase {
     if (!quoteData) {
       throw new FxQuoteExpiredException();
     }
+
+    const parsedQuote = JSON.parse(quoteData);
+    const targetCurrency = parsedQuote.targetCurrency;
+    const rate = new Decimal(parsedQuote.rate);
+    const sourceAmount = new Decimal(dto.amount);
+    const targetAmount = sourceAmount.mul(rate);
 
     // 2. Create the Transfer record with status CREATED
     const transfer = await this.prisma.transfer.create({
@@ -89,20 +99,62 @@ export class InitiateTransferUseCase {
       }
     }
 
-    // 4. Open a Prisma $transaction
-    await this.prisma.$transaction(async (tx) => {
-      // 5. CRITICAL: Execute a raw pessimistic lock on the user's wallet
-      await tx.$queryRaw`SELECT * FROM "wallets" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
+    // 4. Check Wallets for internal ledger
+    const senderWallet = await this.prisma.wallet.findUnique({
+      where: { user_id_currency: { user_id: userId, currency: dto.currency } },
+      include: { accounts: true },
+    });
+    const recipientLedgerWallet = await this.prisma.wallet.findUnique({
+      where: { user_id_currency: { user_id: dto.recipientId, currency: targetCurrency } },
+      include: { accounts: true },
+    });
 
-      // 6. [MR. SAMUEL'S DOMAIN INJECTION POINT]
-      // Here we will call the WalletLedgerModule to safely debit the user.
-      // e.g. await this.ledgerService.postDebit(userId, dto.amount, dto.currency);
+    if (!senderWallet || !senderWallet.accounts[0]) {
+      throw new BadRequestException(`Sender wallet for ${dto.currency} not found`);
+    }
+    if (!recipientLedgerWallet || !recipientLedgerWallet.accounts[0]) {
+      throw new BadRequestException(`Recipient wallet for ${targetCurrency} not found`);
+    }
 
-      // 7. Update the Transfer status to WALLET_DEBITED
-      await tx.transfer.update({
+    const senderAccountId = senderWallet.accounts[0].id;
+    const recipientAccountId = recipientLedgerWallet.accounts[0].id;
+
+    // 6. Build balanced entries
+    const entries: ProposedEntry[] = [
+      {
+        ledgerAccountId: senderAccountId,
+        entryType: EntryType.DEBIT,
+        amount: sourceAmount,
+        currency: dto.currency,
+        description: `Transfer to ${dto.recipientId}`,
+        referenceType: 'TRANSFER',
+        referenceId: transfer.id,
+      },
+      {
+        ledgerAccountId: recipientAccountId,
+        entryType: EntryType.CREDIT,
+        amount: targetAmount,
+        currency: targetCurrency,
+        description: `Transfer from ${userId}`,
+        referenceType: 'TRANSFER',
+        referenceId: transfer.id,
+      }
+    ];
+
+    try {
+      await this.postLedgerTransactionUseCase.execute(transfer.id, entries);
+    } catch (error) {
+      await this.prisma.transfer.update({
         where: { id: transfer.id },
-        data: { status: 'WALLET_DEBITED' },
+        data: { status: 'FAILED' },
       });
+      throw error;
+    }
+
+    // 7. Update the Transfer status to WALLET_DEBITED
+    await this.prisma.transfer.update({
+      where: { id: transfer.id },
+      data: { status: 'WALLET_DEBITED' },
     });
 
     // 8. Resolve recipient's Stellar public key for on-chain payout

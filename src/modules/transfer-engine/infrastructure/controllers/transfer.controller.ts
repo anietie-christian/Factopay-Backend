@@ -1,12 +1,15 @@
-import { Controller, Post, Body, Headers, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Body, Headers, UseInterceptors, UseGuards, Req } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { RequiresIdempotency } from '../../../shared/infrastructure/idempotency/requires-idempotency.decorator';
 import { IdempotencyInterceptor } from '../../../shared/infrastructure/idempotency/idempotency.interceptor';
 import { InitiateTransferUseCase } from '../../application/use-cases/initiate-transfer.use-case';
 import { InitiateTransferDto } from '../../application/dtos/initiate-transfer.dto';
-import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Transfers')
 @Controller('transfers')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'))
 export class TransferController {
   constructor(private readonly initiateTransferUseCase: InitiateTransferUseCase) {}
 
@@ -16,13 +19,11 @@ export class TransferController {
   @RequiresIdempotency()
   @UseInterceptors(IdempotencyInterceptor)
   async initiateTransfer(
+    @Req() req: any,
     @Body() dto: InitiateTransferDto,
     @Headers('idempotency-key') idempotencyKey: string,
   ) {
-    // Note: In a real app, userId comes from the JWT via a guard (e.g. @Req() req)
-    // We mock it for the MVP step as requested.
-    const mockUserId = '11111111-1111-1111-1111-111111111111';
-
-    return await this.initiateTransferUseCase.execute(mockUserId, dto, idempotencyKey);
+    const userId = req.user.id;
+    return await this.initiateTransferUseCase.execute(userId, dto, idempotencyKey);
   }
 }

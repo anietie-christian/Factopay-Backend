@@ -1,10 +1,13 @@
-import { Controller, Get, Post, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 import { GetLiveRatesUseCase } from '../../application/use-cases/get-live-rates.use-case';
 import { LockFxQuoteUseCase } from '../../application/use-cases/lock-fx-quote.use-case';
 import { GetLiveRatesDto, LockQuoteDto } from '../../application/dtos/rates.dto';
 
 @ApiTags('FX Rates')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 @Controller('rates')
 export class RatesController {
   constructor(

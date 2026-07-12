@@ -15,7 +15,7 @@ export class GenerateOtpUseCase {
     private readonly otpRepository: IOtpRepository,
   ) {}
 
-  async execute(dto: GenerateOtpDto): Promise<{ success: boolean; message: string; rawCode: string }> {
+  async execute(dto: GenerateOtpDto): Promise<{ success: boolean; message: string }> {
     const user = await this.userRepository.findById(dto.userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -48,11 +48,12 @@ export class GenerateOtpUseCase {
     await this.otpRepository.save(otp);
 
     // In a real scenario, this is where you'd trigger the SMS/Email provider adapter.
-    // For MVP testing, we return the raw code.
+    // We log it here for dev/testing instead of returning it to prevent exposure.
+    console.log(`[DEV ONLY] Generated ${dto.type} OTP for user ${user.email}: ${rawCode}`);
+
     return {
       success: true,
       message: `${dto.type} OTP generated successfully`,
-      rawCode,
     };
   }
 }

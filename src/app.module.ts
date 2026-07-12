@@ -8,6 +8,8 @@ import { TransferEngineModule } from './modules/transfer-engine/transfer-engine.
 import { GatewayIntegrationsModule } from './modules/gateway-integrations/gateway-integrations.module';
 import { KycManagementModule } from './modules/kyc-management/kyc-management.module';
 import { BlockchainSettlementModule } from './modules/blockchain-settlement/blockchain-settlement.module';
+import { WalletLedgerModule } from './modules/wallet-ledger/wallet-ledger.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { BlockchainSettlementModule } from './modules/blockchain-settlement/bloc
     GatewayIntegrationsModule,
     KycManagementModule,
     BlockchainSettlementModule,
+    WalletLedgerModule,
+    EventEmitterModule.forRoot(),
   ],
   controllers: [],
   providers: [

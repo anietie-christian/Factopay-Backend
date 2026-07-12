@@ -2,150 +2,192 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InitiateTransferUseCase } from '../application/use-cases/initiate-transfer.use-case';
 import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
 import { RedisService } from '../../shared/infrastructure/cache/redis.service';
-import { SubmitSettlementUseCase } from '../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
-import {
-  FxQuoteExpiredException,
-  KycNotApprovedException,
-  KycLimitExceededException,
-  UserNotFoundException,
-} from '../../shared/domain/exceptions/factopay.exception';
-import { BadRequestException } from '@nestjs/common';
+import { PostLedgerTransactionUseCase } from '../../wallet-ledger/application/use-cases/post-ledger-transaction.use-case';
+import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../shared/domain/exceptions/factopay.exception';
+import { InsufficientBalanceException } from '../../wallet-ledger/domain/exceptions/insufficient-balance.exception';
+import { Decimal } from 'decimal.js';
 
 describe('InitiateTransferUseCase', () => {
   let useCase: InitiateTransferUseCase;
-  let mockPrisma: any;
-  let mockRedis: any;
-  let mockSubmitSettlementUseCase: any;
-
-  const dto = {
-    amount: '100.0000',
-    currency: 'EUR',
-    recipientId: 'recipient-uuid-1',
-    quoteId: 'quote-uuid-1',
-  };
+  let prismaService: jest.Mocked<PrismaService>;
+  let redisService: jest.Mocked<RedisService>;
+  let postLedgerTransactionUseCase: jest.Mocked<PostLedgerTransactionUseCase>;
 
   beforeEach(async () => {
-    mockRedis = {
-      get: jest.fn().mockResolvedValue(JSON.stringify({ rate: '1.1' })),
-    };
-
-    mockSubmitSettlementUseCase = {
-      execute: jest.fn().mockResolvedValue({ id: 'tx-1', status: 'SUCCESS' }),
-    };
-
-    mockPrisma = {
-      transfer: {
-        create: jest.fn().mockResolvedValue({ id: 'transfer-uuid-1', amount: '100.0000', status: 'CREATED' }),
-        aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
-        update: jest.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
-      },
-      user: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'user-uuid-1',
-          kycStatus: 'APPROVED',
-          kycTier: 'TIER_1',
-        }),
-      },
-      stellarWallet: {
-        findUnique: jest.fn().mockResolvedValue({
-          userId: 'recipient-uuid-1',
-          publicKey: 'GRECIPIENTWALLET1234567890123456789012345678901234567',
-        }),
-      },
-      $transaction: jest.fn().mockImplementation(async (callback) => {
-        return callback(mockPrisma);
-      }),
-      $queryRaw: jest.fn().mockResolvedValue([{ id: 'wallet-id' }]),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InitiateTransferUseCase,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: RedisService, useValue: mockRedis },
-        { provide: SubmitSettlementUseCase, useValue: mockSubmitSettlementUseCase },
+        {
+          provide: PrismaService,
+          useValue: {
+            user: { findUnique: jest.fn() },
+            transfer: { create: jest.fn(), aggregate: jest.fn(), update: jest.fn() },
+            wallet: { findUnique: jest.fn() },
+            systemWallet: { findFirst: jest.fn() },
+          },
+        },
+        {
+          provide: RedisService,
+          useValue: { get: jest.fn() },
+        },
+        {
+          provide: PostLedgerTransactionUseCase,
+          useValue: { execute: jest.fn() },
+        },
       ],
     }).compile();
 
     useCase = module.get<InitiateTransferUseCase>(InitiateTransferUseCase);
+    prismaService = module.get(PrismaService) as any;
+    redisService = module.get(RedisService) as any;
+    postLedgerTransactionUseCase = module.get(PostLedgerTransactionUseCase) as any;
   });
 
-  it('should throw FxQuoteExpiredException if quote is not in Redis cache', async () => {
-    mockRedis.get.mockResolvedValue(null);
+  const validDto = {
+    amount: new Decimal(100),
+    currency: 'EUR',
+    targetCurrency: 'USD',
+    quoteId: 'valid-quote-id',
+  } as any;
 
-    await expect(useCase.execute('user-uuid-1', dto, 'idemp-key-1')).rejects.toThrow(FxQuoteExpiredException);
+  const validQuote = {
+    sourceCurrency: 'EUR',
+    targetCurrency: 'USD',
+    rate: 1.1,
+    expiresAt: new Date(Date.now() + 60000).toISOString(),
+  };
+
+  it('should throw FxQuoteExpiredException if quote is missing from Redis', async () => {
+    redisService.get.mockResolvedValueOnce(null);
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow(FxQuoteExpiredException);
   });
 
-  it('should throw UserNotFoundException if user record does not exist', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue(null);
-
-    await expect(useCase.execute('user-uuid-1', dto, 'idemp-key-1')).rejects.toThrow(UserNotFoundException);
+  it('should throw UserNotFoundException if user does not exist', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow(UserNotFoundException);
   });
 
-  it('should throw KycNotApprovedException if user is not approved', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 'user-uuid-1',
-      kycStatus: 'PENDING',
-      kycTier: 'TIER_1',
-    });
-
-    await expect(useCase.execute('user-uuid-1', dto, 'idemp-key-1')).rejects.toThrow(KycNotApprovedException);
+  it('should throw KycNotApprovedException if user KYC is not APPROVED', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'PENDING', kycTier: 'TIER_1' });
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow(KycNotApprovedException);
   });
 
-  it('should throw KycLimitExceededException if monthly limits are exceeded', async () => {
-    mockPrisma.transfer.aggregate.mockResolvedValue({ _sum: { amount: 950 } });
-
-    await expect(useCase.execute('user-uuid-1', dto, 'idemp-key-1')).rejects.toThrow(KycLimitExceededException);
+  it('should throw KycLimitExceededException if monthly limit is exceeded', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_1' });
+    (prismaService.transfer.aggregate as jest.Mock).mockResolvedValueOnce({ _sum: { amount: new Decimal(950) } }); // 950 + 100 > 1000 limit
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow(KycLimitExceededException);
   });
 
-  it('should update transfer status to FAILED and throw BadRequestException if recipient does not have a provisioned Stellar wallet', async () => {
-    mockPrisma.stellarWallet.findUnique.mockResolvedValue(null);
-
-    await expect(useCase.execute('user-uuid-1', dto, 'idemp-key-1')).rejects.toThrow(BadRequestException);
-    expect(mockPrisma.transfer.update).toHaveBeenCalledWith({
-      where: { id: 'transfer-uuid-1' },
-      data: { status: 'FAILED' },
-    });
+  it('should fail the transfer if sender wallet is missing', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_3' });
+    (prismaService.wallet.findUnique as jest.Mock).mockResolvedValueOnce(null); // Sender wallet missing
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow('Sender wallet for EUR not found');
   });
 
-  it('should successfully submit blockchain settlement and update status to COMPLETED if Horizon confirms success', async () => {
-    const result = await useCase.execute('user-uuid-1', dto, 'idemp-key-1');
-
-    expect(result.success).toBe(true);
-    expect(result.status).toBe('COMPLETED');
-    expect(mockSubmitSettlementUseCase.execute).toHaveBeenCalledWith({
-      transferId: 'transfer-uuid-1',
-      destinationPublicKey: 'GRECIPIENTWALLET1234567890123456789012345678901234567',
-      amount: dto.amount,
-      memo: 'FW-transfer',
-      adminId: 'SYSTEM',
-      ipAddress: '127.0.0.1',
-    });
-    expect(mockPrisma.transfer.update).toHaveBeenCalledWith({
-      where: { id: 'transfer-uuid-1' },
+  it('should process the transfer and post to ledger successfully', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_3' });
+    
+    (prismaService.wallet.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ accounts: [{ id: 'sender-acct-1' }] }) // Sender wallet
+      .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] }); // System wallet
+      
+    postLedgerTransactionUseCase.execute.mockResolvedValueOnce(undefined);
+    
+    await useCase.execute('user-id', validDto, 'idempotency-key');
+    
+    expect(postLedgerTransactionUseCase.execute).toHaveBeenCalled();
+    const entries = postLedgerTransactionUseCase.execute.mock.calls[0][1];
+    expect(entries).toHaveLength(2);
+    expect(entries[0].amount.toString()).toBe('100'); // Source amount
+    expect(entries[0].currency).toBe('EUR');
+    expect(entries[1].amount.toString()).toBe('110'); // Converted amount (100 * 1.1)
+    expect(entries[1].currency).toBe('USD');
+    
+    expect(prismaService.transfer.update).toHaveBeenCalledWith({
+      where: { id: 'transfer-123' },
       data: { status: 'COMPLETED' },
     });
   });
 
-  it('should update transfer status to BLOCKCHAIN_PENDING if Horizon leaves the transaction pending verification', async () => {
-    mockSubmitSettlementUseCase.execute.mockResolvedValue({ id: 'tx-1', status: 'PENDING' });
-
-    const result = await useCase.execute('user-uuid-1', dto, 'idemp-key-1');
-
-    expect(result.success).toBe(true);
-    expect(result.status).toBe('BLOCKCHAIN_PENDING');
-    expect(mockPrisma.transfer.update).toHaveBeenCalledWith({
-      where: { id: 'transfer-uuid-1' },
-      data: { status: 'BLOCKCHAIN_PENDING' },
+  it('should mark transfer as FAILED if InsufficientBalanceException is thrown by Ledger', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_3' });
+    
+    (prismaService.wallet.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ accounts: [{ id: 'sender-acct-1' }] }) 
+      .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] });
+      
+    postLedgerTransactionUseCase.execute.mockRejectedValueOnce(new InsufficientBalanceException('0', '100', 'EUR'));
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow(InsufficientBalanceException);
+    
+    expect(prismaService.transfer.update).toHaveBeenCalledWith({
+      where: { id: 'transfer-123' },
+      data: { status: 'FAILED' },
     });
   });
 
-  it('should update transfer status to FAILED and rethrow if blockchain settlement throws an error', async () => {
-    mockSubmitSettlementUseCase.execute.mockRejectedValue(new Error('Horizon timeout error'));
+  it('should throw Error if recipient wallet is missing', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_3' });
+    
+    (prismaService.wallet.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ accounts: [{ id: 'sender-acct-1' }] }) 
+      .mockResolvedValueOnce(null); // Recipient wallet missing
+      
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow('Recipient wallet for USD not found');
+  });
 
-    await expect(useCase.execute('user-uuid-1', dto, 'idemp-key-1')).rejects.toThrow('Horizon timeout error');
-    expect(mockPrisma.transfer.update).toHaveBeenCalledWith({
-      where: { id: 'transfer-uuid-1' },
+  it('should allow transfer for TIER_2 if within limit', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_2' });
+    (prismaService.transfer.aggregate as jest.Mock).mockResolvedValueOnce({ _sum: { amount: new Decimal(100) } }); // 100 + 100 < 10000 limit
+    
+    (prismaService.wallet.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ accounts: [{ id: 'sender-acct-1' }] }) 
+      .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] });
+      
+    postLedgerTransactionUseCase.execute.mockResolvedValueOnce(undefined);
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).resolves.toEqual({ success: true, transferId: 'transfer-123' });
+  });
+
+  it('should mark transfer as FAILED if UnbalancedEntriesException is thrown by Ledger', async () => {
+    redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
+    (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
+    (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_3' });
+    
+    (prismaService.wallet.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ accounts: [{ id: 'sender-acct-1' }] }) 
+      .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] });
+      
+    // Import this exception at the top! We will mock it by just rejecting with an error that has the right name.
+    const unbalancedError = new Error('Unbalanced');
+    unbalancedError.name = 'UnbalancedEntriesException';
+    Object.setPrototypeOf(unbalancedError, require('../../wallet-ledger/domain/exceptions/unbalanced-entries.exception').UnbalancedEntriesException.prototype);
+    postLedgerTransactionUseCase.execute.mockRejectedValueOnce(unbalancedError);
+    
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow('Unbalanced');
+    
+    expect(prismaService.transfer.update).toHaveBeenCalledWith({
+      where: { id: 'transfer-123' },
       data: { status: 'FAILED' },
     });
   });
