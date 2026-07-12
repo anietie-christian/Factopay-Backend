@@ -31,6 +31,13 @@ export class DoubleEntryEngine {
       throw new UnbalancedEntriesException('0', '0');
     }
 
+    // Negative amount check
+    for (const entry of entries) {
+      if (entry.amount.lessThanOrEqualTo(0)) {
+        throw new Error(`Ledger entries must have an amount greater than 0. Received: ${entry.amount.toString()}`);
+      }
+    }
+
     // Per-account currency check
     const byAccount = groupBy(entries, e => e.ledgerAccountId);
     for (const [accountId, accountEntries] of Object.entries(byAccount)) {
@@ -40,16 +47,19 @@ export class DoubleEntryEngine {
       }
     }
 
-    // Balance check
-    const debits = entries
-      .filter(e => e.entryType === EntryType.DEBIT)
-      .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
-    const credits = entries
-      .filter(e => e.entryType === EntryType.CREDIT)
-      .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
+    // Balance check per currency
+    const byCurrency = groupBy(entries, e => e.currency);
+    for (const [currency, currEntries] of Object.entries(byCurrency)) {
+      const debits = currEntries
+        .filter(e => e.entryType === EntryType.DEBIT)
+        .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
+      const credits = currEntries
+        .filter(e => e.entryType === EntryType.CREDIT)
+        .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
 
-    if (!debits.equals(credits)) {
-      throw new UnbalancedEntriesException(debits.toFixed(4), credits.toFixed(4));
+      if (!debits.equals(credits)) {
+        throw new UnbalancedEntriesException(`${debits.toFixed(4)} ${currency}`, `${credits.toFixed(4)} ${currency}`);
+      }
     }
   }
 }

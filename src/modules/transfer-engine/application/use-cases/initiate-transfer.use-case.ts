@@ -5,6 +5,7 @@ import { RedisService } from '../../../shared/infrastructure/cache/redis.service
 import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../../shared/domain/exceptions/factopay.exception';
 import { SubmitSettlementUseCase } from '../../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
 import { PostLedgerTransactionUseCase } from '../../../wallet-ledger/application/use-cases/post-ledger-transaction.use-case';
+import { ReverseLedgerTransactionUseCase } from '../../../wallet-ledger/application/use-cases/reverse-ledger-transaction.use-case';
 import { EntryType, ProposedEntry } from '../../../wallet-ledger/domain/services/double-entry.engine';
 import { Decimal } from 'decimal.js';
 
@@ -15,6 +16,7 @@ export class InitiateTransferUseCase {
     private readonly redisService: RedisService,
     private readonly submitSettlementUseCase: SubmitSettlementUseCase,
     private readonly postLedgerTransactionUseCase: PostLedgerTransactionUseCase,
+    private readonly reverseLedgerTransactionUseCase: ReverseLedgerTransactionUseCase,
   ) {}
 
   async execute(userId: string, dto: InitiateTransferDto, idempotencyKey: string) {
@@ -120,8 +122,10 @@ export class InitiateTransferUseCase {
     const recipientAccountId = recipientLedgerWallet.accounts[0].id;
 
     // 6. Build balanced entries
-    const entries: ProposedEntry[] = [
-      {
+    const entries: ProposedEntry[] = [];
+    
+    if (dto.currency === targetCurrency) {
+      entries.push({
         ledgerAccountId: senderAccountId,
         entryType: EntryType.DEBIT,
         amount: sourceAmount,
@@ -129,8 +133,8 @@ export class InitiateTransferUseCase {
         description: `Transfer to ${dto.recipientId}`,
         referenceType: 'TRANSFER',
         referenceId: transfer.id,
-      },
-      {
+      });
+      entries.push({
         ledgerAccountId: recipientAccountId,
         entryType: EntryType.CREDIT,
         amount: targetAmount,
@@ -138,8 +142,65 @@ export class InitiateTransferUseCase {
         description: `Transfer from ${userId}`,
         referenceType: 'TRANSFER',
         referenceId: transfer.id,
+      });
+    } else {
+      // Cross-currency transfer requires routing through FX Liquidity accounts
+      const sourceFxWallet = await this.prisma.wallet.findFirst({
+        where: { currency: dto.currency, wallet_type: 'LIQUIDITY' },
+        include: { accounts: true }
+      });
+      const targetFxWallet = await this.prisma.wallet.findFirst({
+        where: { currency: targetCurrency, wallet_type: 'LIQUIDITY' },
+        include: { accounts: true }
+      });
+
+      if (!sourceFxWallet || !sourceFxWallet.accounts[0]) {
+        throw new BadRequestException(`System FX Liquidity wallet for ${dto.currency} not found`);
       }
-    ];
+      if (!targetFxWallet || !targetFxWallet.accounts[0]) {
+        throw new BadRequestException(`System FX Liquidity wallet for ${targetCurrency} not found`);
+      }
+
+      // Leg 1: User debited, FX Source credited (balances the source currency)
+      entries.push({
+        ledgerAccountId: senderAccountId,
+        entryType: EntryType.DEBIT,
+        amount: sourceAmount,
+        currency: dto.currency,
+        description: `Transfer to ${dto.recipientId} (FX Leg 1)`,
+        referenceType: 'TRANSFER',
+        referenceId: transfer.id,
+      });
+      entries.push({
+        ledgerAccountId: sourceFxWallet.accounts[0].id,
+        entryType: EntryType.CREDIT,
+        amount: sourceAmount,
+        currency: dto.currency,
+        description: `FX Clearing Source for ${transfer.id}`,
+        referenceType: 'TRANSFER',
+        referenceId: transfer.id,
+      });
+
+      // Leg 2: FX Target debited, Recipient credited (balances the target currency)
+      entries.push({
+        ledgerAccountId: targetFxWallet.accounts[0].id,
+        entryType: EntryType.DEBIT,
+        amount: targetAmount,
+        currency: targetCurrency,
+        description: `FX Clearing Target for ${transfer.id}`,
+        referenceType: 'TRANSFER',
+        referenceId: transfer.id,
+      });
+      entries.push({
+        ledgerAccountId: recipientAccountId,
+        entryType: EntryType.CREDIT,
+        amount: targetAmount,
+        currency: targetCurrency,
+        description: `Transfer from ${userId} (FX Leg 2)`,
+        referenceType: 'TRANSFER',
+        referenceId: transfer.id,
+      });
+    }
 
     try {
       await this.postLedgerTransactionUseCase.execute(transfer.id, entries);
@@ -163,6 +224,8 @@ export class InitiateTransferUseCase {
     });
     if (!recipientWallet) {
       // Mark as FAILED since payout destination is missing wallet configuration
+      // We must reverse the ledger transaction before marking it as failed!
+      await this.reverseLedgerTransactionUseCase.execute(transfer.id);
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
@@ -190,7 +253,8 @@ export class InitiateTransferUseCase {
 
       return { success: true, transferId: transfer.id, status: finalStatus };
     } catch (error) {
-      // Record failure state
+      // Record failure state and reverse the ledger
+      await this.reverseLedgerTransactionUseCase.execute(transfer.id);
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
