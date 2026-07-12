@@ -21,6 +21,7 @@ This file tracks the ownership, development status, and recent changes of each b
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
 - **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`. Refactored RxJS pipeline using `mergeMap` and `from` to resolve Redis transactions synchronously, repairing test suite failures.
+- **shared (Value Objects):** Christian strictly locked down Domain-Driven Design Value Objects. `Money` now strictly enforces positive values, exact 4-decimal precision (via `decimal.js`), and binds to a strictly validated `Currency` class. `Uuid` object built to enforce UUIDv4 Regex.
 - **shared (Redis Service):** Christian/Oscar registered and exported `RedisService` in `SharedModule` to fix dependency injection errors in consumer modules like `TransferEngineModule`.
 - **shared (API Gateway):** Christian successfully registered the global `ThrottlerGuard` using `@nestjs/throttler` in `app.module.ts`. Global API limit is set to 120 requests/min, while sensitive auth routes strictly override this to 10 requests/min to prevent brute forcing.
 - **gateway-integrations:** Christian implemented the `WebhookSignatureMiddleware` to strictly verify HMAC SHA-256 signatures for inbound payment webhooks.
@@ -46,6 +47,10 @@ The integration requests to support the end-to-end integration of the completed 
 ---
 
 ## Change Log
+
+### July 12, 2026
+- **Shared Kernel Value Objects**: Christian fully implemented and locked down Guarded Value Objects (`Money`, `Currency`, and `UUID`). Rebuilt `money.vo.ts` to strictly enforce `amount >= 0`, mitigating negative value injection vulnerabilities, and fixed precision to 4 decimal places using `decimal.js`. Rebuilt `currency.vo.ts` from a simple type to a validated class enforcing ISO 4217 codes. Created `uuid.vo.ts` with strict Regex validation.
+- **Shared Domain Exceptions**: Mapped invalid value object creations to `InvalidMoneyException`, `InvalidCurrencyException`, and `InvalidUuidException` (HTTP 400 Bad Request).
 
 ### July 09, 2026
 - **KYC Management Bounded Context**: Completed the KYC management module including domain events, Prisma repository implementation, mock and production Sumsub providers, application use cases (`SubmitBasicProfile`, `InitiateKycCheck`, `GetKycStatus`, `HandleKycWebhook`), and controller endpoints. Grouped endpoints in Swagger under the 'KYC' tag and corrected route prefix.
