@@ -10,7 +10,7 @@ This file tracks the ownership, development status, and recent changes of each b
 | `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | Completed |
 | `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | Pending |
 | `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | Pending |
-| `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Mr. Samuel** | Pending |
+| `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Christian** | Pending |
 | `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | Completed |
 | `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | Completed |
 | `shared` | Exceptions, value objects, global middleware, guards, idempotency | **Christian** | Completed |
