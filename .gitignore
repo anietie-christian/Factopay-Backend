@@ -9,6 +9,9 @@
 # Build artifacts
 /dist
 
+# Test coverage reports
+/coverage
+
 # Environment variables - never commit secrets!
 .env
 .env.*
@@ -46,4 +49,7 @@ terraform.rc
 
 # Terraform Secrets
 *.tfvars
-*.tfvars.json
+*.tfvars.jsoncoverage/
+test-output.txt
+otp-run.log
+*.pid

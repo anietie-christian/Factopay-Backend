@@ -51,9 +51,10 @@ export class PrismaOtpRepository implements IOtpRepository {
         userId,
         type,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
     });
 
     if (!record) {
