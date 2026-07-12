@@ -8,7 +8,7 @@ This file tracks the ownership, development status, and recent changes of each b
 |---|---|---|---|
 | `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | Completed |
 | `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | Completed |
-| `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | Pending |
+| `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | Completed |
 | `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | Pending |
 | `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Christian** | Pending |
 | `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | Completed |
@@ -18,6 +18,9 @@ This file tracks the ownership, development status, and recent changes of each b
 ---
 
 ## Recent Changes
+- **blockchain-settlement (Edge Cases & Concurrency):** Oscar implemented a 20% network fee buffer for Stellar gas spikes, a 3-attempt exponential backoff retry loop for resilient ledger submissions, a Redis-backed `WalletLockManager` to resolve concurrency/sequence number collisions, and fully documented the context in `docs/BLOCKCHAIN_SETTLEMENT.md`.
+- **shared (Type Fixes):** Oscar fixed compilation errors by exporting the `CurrencyCode` type alias from `currency.vo.ts`.
+- **infrastructure (Docker):** Oscar optimized `.dockerignore` using recursive exclusions (shrinking build context from 720MB to <5MB) and created a database seeder (`prisma/seed.ts`) with a cascade-truncation routine to populate test users and transaction histories.
 - **transfer-engine (FX Rates):** Christian implemented the `GetLiveRatesUseCase` and `LockFxQuoteUseCase` which retrieves live rates and caches quotes in Redis for exactly 30 seconds using `ioredis`. Enforced `FxQuoteExpiredException` inside the transfer orchestration to protect against rate slippage.
 - **transfer-engine (Orchestration):** Christian implemented the `InitiateTransferUseCase` orchestration logic, successfully incorporating Prisma `$transaction` and raw row-level locking for secure debits.
 - **shared (Security/Idempotency):** Christian implemented a Redis-backed `IdempotencyInterceptor` (`setNxWithExpiry`) that strictly locks an `Idempotency-Key` for 120s to prevent double spending and caches successful responses. The `TransferController` is now guarded by `@RequiresIdempotency()`. Refactored RxJS pipeline using `mergeMap` and `from` to resolve Redis transactions synchronously, repairing test suite failures.
@@ -49,6 +52,11 @@ The integration requests to support the end-to-end integration of the completed 
 ## Change Log
 
 ### July 12, 2026
+- **Blockchain Settlement Edge Cases & Safety**: Oscar integrated network fee buffers (20% above base fee), a robust retry loop (3 retry attempts with exponential backoff), and built a Redis-backed concurrency locker (`WalletLockManager`) to prevent sequence number collisions during concurrent settlements.
+- **Settlement Documentation**: Produced detailed developer guidelines in `docs/BLOCKCHAIN_SETTLEMENT.md` for end-to-end transaction flows and production mainnet migration instructions.
+- **Docker Context Size Reduction**: Optimized `.dockerignore` to ignore intermediate agent artifacts and logs, reducing build transfer context from 720MB to under 5MB.
+- **Shared Type Export Fix**: Added the missing `CurrencyCode` type export in `currency.vo.ts` to allow successful typescript compilation of transfer-engine dependencies.
+- **Database Drift Resolution & Seeding**: Synchronized the Neon database with Prisma schema definitions using `prisma db push` to establish missing tables, and wrote/executed a robust database seeder using raw CASCADE truncations to seed rich test data across kyc, auth, and blockchain modules.
 - **Shared Kernel Value Objects**: Christian fully implemented and locked down Guarded Value Objects (`Money`, `Currency`, and `UUID`). Rebuilt `money.vo.ts` to strictly enforce `amount >= 0`, mitigating negative value injection vulnerabilities, and fixed precision to 4 decimal places using `decimal.js`. Rebuilt `currency.vo.ts` from a simple type to a validated class enforcing ISO 4217 codes. Created `uuid.vo.ts` with strict Regex validation.
 - **Shared Domain Exceptions**: Mapped invalid value object creations to `InvalidMoneyException`, `InvalidCurrencyException`, and `InvalidUuidException` (HTTP 400 Bad Request).
 

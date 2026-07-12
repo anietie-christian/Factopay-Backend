@@ -1,29 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InitiateTransferDto } from '../dtos/initiate-transfer.dto';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { RedisService } from '../../../shared/infrastructure/cache/redis.service';
 import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../../shared/domain/exceptions/factopay.exception';
-import { PostLedgerTransactionUseCase } from '../../../wallet-ledger/application/use-cases/post-ledger-transaction.use-case';
-import { EntryType, ProposedEntry } from '../../../wallet-ledger/domain/services/double-entry.engine';
-import { InsufficientBalanceException } from '../../../wallet-ledger/domain/exceptions/insufficient-balance.exception';
-import { UnbalancedEntriesException } from '../../../wallet-ledger/domain/exceptions/unbalanced-entries.exception';
-import { Decimal } from 'decimal.js';
-import { Logger } from '@nestjs/common';
+import { SubmitSettlementUseCase } from '../../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
 
 @Injectable()
 export class InitiateTransferUseCase {
-  private readonly logger = new Logger(InitiateTransferUseCase.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
-    private readonly postLedgerTransactionUseCase: PostLedgerTransactionUseCase,
+    private readonly submitSettlementUseCase: SubmitSettlementUseCase,
   ) {}
 
   async execute(userId: string, dto: InitiateTransferDto, idempotencyKey: string) {
-    const start = Date.now();
-    const log = (msg) => console.log(`[${Date.now() - start}ms] ${msg}`);
-
     // 1. Verify the FX Quote
     const quoteKey = `fx_quote:${dto.quoteId}`;
     const quoteData = await this.redisService.get(quoteKey);
@@ -31,48 +21,23 @@ export class InitiateTransferUseCase {
     if (!quoteData) {
       throw new FxQuoteExpiredException();
     }
-    log('Redis fetched');
 
-    const parsedQuote = JSON.parse(quoteData);
-    const targetCurrency = parsedQuote.targetCurrency;
-    const rate = new Decimal(parsedQuote.rate);
-    const sourceAmount = new Decimal(dto.amount);
-    const targetAmount = sourceAmount.mul(rate);
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    // 2-4. Execute independent validation queries in parallel
-    const [user, monthlyTransfers, senderWallet, recipientWallet] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-      }),
-      this.prisma.transfer.aggregate({
-        where: {
-          userId,
-          status: 'COMPLETED',
-          createdAt: {
-            gte: startOfMonth,
-          },
-        },
-        _sum: {
-          amount: true,
-        },
-      }),
-      this.prisma.wallet.findUnique({
-        where: { user_id_currency: { user_id: userId, currency: dto.currency } },
-        include: { accounts: true },
-      }),
-      this.prisma.wallet.findUnique({
-        where: { user_id_currency: { user_id: dto.recipientId, currency: targetCurrency } },
-        include: { accounts: true },
-      }),
-    ]);
-    log('Parallel queries finished (user, limits, wallets)');
+    // 2. Create the Transfer record with status CREATED
+    const transfer = await this.prisma.transfer.create({
+      data: {
+        userId,
+        amount: dto.amount,
+        currency: dto.currency,
+        idempotencyKey,
+        status: 'CREATED',
+      },
+    });
 
     // 3. [OSCAR'S DOMAIN INJECTION POINT]
     // Verify the user is KYC approved and has enough remaining limit for this transfer
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
     if (!user) {
       throw new UserNotFoundException();
     }
@@ -100,88 +65,85 @@ export class InitiateTransferUseCase {
     }
 
     if (monthlyLimit > 0) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const monthlyTransfers = await this.prisma.transfer.aggregate({
+        where: {
+          userId,
+          status: 'COMPLETED',
+          createdAt: {
+            gte: startOfMonth,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+
       const totalTransferred = Number(monthlyTransfers._sum.amount || 0);
       const newTotal = totalTransferred + Number(dto.amount);
       if (newTotal > monthlyLimit) {
         throw new KycLimitExceededException(`Monthly KYC transfer limit of €${monthlyLimit} exceeded.`);
       }
     }
-    log('KYC Checked');
 
-    // Check Wallets
-    if (!senderWallet || !senderWallet.accounts[0]) {
-      throw new Error(`Sender wallet for ${dto.currency} not found`);
-    }
-    if (!recipientWallet || !recipientWallet.accounts[0]) {
-      throw new Error(`Recipient wallet for ${targetCurrency} not found`);
-    }
+    // 4. Open a Prisma $transaction
+    await this.prisma.$transaction(async (tx) => {
+      // 5. CRITICAL: Execute a raw pessimistic lock on the user's wallet
+      await tx.$queryRaw`SELECT * FROM "wallets" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
 
-    const senderAccountId = senderWallet.accounts[0].id;
-    const recipientAccountId = recipientWallet.accounts[0].id;
+      // 6. [MR. SAMUEL'S DOMAIN INJECTION POINT]
+      // Here we will call the WalletLedgerModule to safely debit the user.
+      // e.g. await this.ledgerService.postDebit(userId, dto.amount, dto.currency);
 
-    // 5. Create the Transfer record with status CREATED (only after validation passes)
-    const transfer = await this.prisma.transfer.create({
-      data: {
-        userId,
-        amount: dto.amount,
-        currency: dto.currency,
-        idempotencyKey,
-        status: 'CREATED',
-      },
+      // 7. Update the Transfer status to WALLET_DEBITED
+      await tx.transfer.update({
+        where: { id: transfer.id },
+        data: { status: 'WALLET_DEBITED' },
+      });
     });
-    log('Transfer created in DB');
 
-    // 6. Build balanced entries
-    const entries: ProposedEntry[] = [
-      {
-        ledgerAccountId: senderAccountId,
-        entryType: EntryType.DEBIT,
-        amount: sourceAmount,
-        currency: dto.currency,
-        description: `Transfer to ${dto.recipientId}`,
-        referenceType: 'TRANSFER',
-        referenceId: transfer.id,
-      },
-      {
-        ledgerAccountId: recipientAccountId,
-        entryType: EntryType.CREDIT,
-        amount: targetAmount,
-        currency: targetCurrency,
-        description: `Transfer from ${userId}`,
-        referenceType: 'TRANSFER',
-        referenceId: transfer.id,
-      }
-    ];
+    // 8. Resolve recipient's Stellar public key for on-chain payout
+    const recipientWallet = await this.prisma.stellarWallet.findUnique({
+      where: { userId: dto.recipientId },
+    });
+    if (!recipientWallet) {
+      // Mark as FAILED since payout destination is missing wallet configuration
+      await this.prisma.transfer.update({
+        where: { id: transfer.id },
+        data: { status: 'FAILED' },
+      });
+      throw new BadRequestException('Recipient does not have a provisioned Stellar wallet');
+    }
 
-    // 7. Call PostLedgerTransactionUseCase
     try {
-      await this.postLedgerTransactionUseCase.execute(transfer.id, entries);
+      // 9. Submit the blockchain settlement leg outside database transaction lock
+      const settlement = await this.submitSettlementUseCase.execute({
+        transferId: transfer.id,
+        destinationPublicKey: recipientWallet.publicKey,
+        amount: dto.amount,
+        memo: `FW-${transfer.id.slice(0, 8)}`,
+        adminId: 'SYSTEM',
+        ipAddress: '127.0.0.1',
+      });
+
+      // 10. Update final status based on gateway confirmation
+      const finalStatus = settlement.status === 'SUCCESS' ? 'COMPLETED' : 'BLOCKCHAIN_PENDING';
+      await this.prisma.transfer.update({
+        where: { id: transfer.id },
+        data: { status: finalStatus },
+      });
+
+      return { success: true, transferId: transfer.id, status: finalStatus };
     } catch (error) {
-      if (error instanceof InsufficientBalanceException) {
-        await this.prisma.transfer.update({
-          where: { id: transfer.id },
-          data: { status: 'FAILED' },
-        });
-        throw error;
-      } else if (error instanceof UnbalancedEntriesException) {
-        this.logger.error(`CRITICAL: Unbalanced entries detected for transfer ${transfer.id}`, error.stack);
-        await this.prisma.transfer.update({
-          where: { id: transfer.id },
-          data: { status: 'FAILED' },
-        });
-        throw error;
-      }
+      // Record failure state
+      await this.prisma.transfer.update({
+        where: { id: transfer.id },
+        data: { status: 'FAILED' },
+      });
       throw error;
     }
-    log('Ledger posted');
-
-    // 8. Update the Transfer status to COMPLETED
-    await this.prisma.transfer.update({
-      where: { id: transfer.id },
-      data: { status: 'COMPLETED' },
-    });
-    log('Transfer marked completed');
-
-    return { success: true, transferId: transfer.id };
   }
 }

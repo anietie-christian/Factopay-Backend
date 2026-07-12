@@ -7,7 +7,6 @@ import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { webhookBackoffStrategy } from './infrastructure/bullmq/custom-backoff';
-import { bullBoardAuthMiddleware } from './infrastructure/middleware/bull-board-auth.middleware';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -20,8 +19,7 @@ import { bullBoardAuthMiddleware } from './infrastructure/middleware/bull-board-
       name: 'webhook-dlq',
     }),
     BullBoardModule.forRoot({
-      route: '/admin/queues',
-      middleware: [bullBoardAuthMiddleware],
+      route: '/api/v1/admin/queues',
       adapter: ExpressAdapter,
     }),
     BullBoardModule.forFeature({

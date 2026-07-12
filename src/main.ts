@@ -57,7 +57,6 @@ async function bootstrap() {
   // Global Exception Filter
   app.useGlobalFilters(new FactoPayExceptionFilter());
 
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
+  await app.listen(3000);
 }
 bootstrap();

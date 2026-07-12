@@ -196,3 +196,110 @@ The architecture is designed to scale linearly as user traffic and transaction v
   - Attach **AWS WAF (Web Application Firewall)** to the ALB to block SQL injections, cross-site scripting (XSS), and rate-limit anomalous IPs at the AWS edge.
 * **Est. Monthly AWS Cost**: **~$250.00+ / month** (scales dynamically based on usage)
 
+---
+
+## 7. Migration Runbook: Transitioning to AWS ECS (Fargate) & ElastiCache
+
+This section outlines the step-by-step procedure to migrate the FactoPay backend from the single-node EC2 instance to a fully managed, auto-scaled AWS ECS (Fargate) and Amazon ElastiCache (Redis) architecture.
+
+### Step 1: Network Infrastructure Preparation (VPC)
+1. **Private Subnet Provisioning**: Ensure your VPC has at least two private subnets across two different Availability Zones (AZs) for compute workloads, and two public subnets for the load balancer.
+2. **NAT Gateway (or NAT Instance)**: Deploy a NAT Gateway in a public subnet to allow ECS Fargate tasks in the private subnets to download dependencies, access the Stellar Network, and reach external services (Flutterwave, Sumsub, Twilio).
+3. **Security Groups Configuration**:
+   * **ALB Security Group**: Allow ingress on `80/443` from Cloudflare IP addresses.
+   * **ECS Tasks Security Group**: Allow ingress on port `3000` (API) strictly from the ALB Security Group. Allow all egress.
+   * **RDS Security Group**: Add an ingress rule allowing port `5432` from the ECS Tasks Security Group.
+   * **ElastiCache Security Group**: Allow ingress on port `6379` strictly from the ECS Tasks Security Group.
+
+### Step 2: Provision AWS ElastiCache for Redis
+1. **Creation**: Provision a managed Redis cluster in Amazon ElastiCache.
+   * **Engine**: Redis OSS (version 7.x).
+   * **Node Type**: `cache.t4g.micro` (sufficient for MVP scale) or `cache.t4g.small`.
+   * **Subnet Group**: Group the private subnets in the VPC.
+   * **Multi-AZ**: Enable only if strict high-availability is budgeted.
+2. **Retrieve Endpoints**: Once provisioned, note the **Primary Endpoint** URL.
+3. **SSM Parameter Update**: Update `REDIS_HOST` in the SSM Parameter Store with the ElastiCache Primary Endpoint address.
+
+### Step 3: Containerize and Publish to AWS ECR
+1. **ECR Repository**: Create a private Amazon ECR repository (e.g. `factopay-api`).
+2. **Authentication**: Authenticate your CI/CD runner (GitHub Actions / GitLab CI) or local terminal to ECR:
+   ```bash
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+   ```
+3. **Build & Push**:
+   ```bash
+   docker build -t factopay-api:latest -f Dockerfile .
+   docker tag factopay-api:latest <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/factopay-api:latest
+   docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/factopay-api:latest
+   ```
+
+### Step 4: Create ECS Task Definition and Service
+1. **Execution IAM Role**: Create an ECS Task Execution Role (`ecsTaskExecutionRole`) and attach:
+   * `AmazonECSTaskExecutionRolePolicy`
+   * Inline permission to read secrets from AWS Systems Manager (SSM) Parameter Store:
+     ```json
+     {
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Action": [
+             "ssm:GetParameters",
+             "secretsmanager:GetSecretValue"
+           ],
+           "Resource": "*"
+         }
+       ]
+     }
+     ```
+2. **Task Definition Configuration**:
+   * **Launch Type**: Fargate.
+   * **CPU & RAM**: `0.25 vCPU` and `512MB RAM` (scale up as needed).
+   * **Container Port Mapping**: Map port `3000` (TCP).
+   * **Environment Variables (SSM Reference)**: Reference critical variables (`DATABASE_URL`, `REDIS_HOST`, Stellar secrets) directly from SSM Parameter Store instead of hardcoding them in the Task Definition.
+3. **Create ECS Cluster & Service**:
+   * Create an ECS Cluster (e.g., `factopay-cluster`).
+   * Create a Service using the task definition. Set **Desired Tasks** to `2` for redundancy.
+   * Configure the service to use the **ECS Tasks Security Group** and place tasks in the **VPC Private Subnets**.
+
+### Step 5: Configure Application Load Balancer (ALB)
+1. **Provision ALB**:
+   * **Type**: Application Load Balancer.
+   * **Scheme**: Internet-facing.
+   * **Subnets**: Select the public subnets.
+   * **Security Group**: ALB Security Group (Cloudflare locked).
+2. **Target Group Creation**:
+   * **Target Type**: IP (required for Fargate).
+   * **Protocol / Port**: HTTP / 3000.
+   * **Health Check Path**: `/api/v1/admin/dashboard/health` (or basic root health check).
+3. **Listeners**:
+   * Map HTTP `80` to redirect to HTTPS `443`.
+   * Map HTTPS `443` to forward traffic to the target group. Attach your domain's ACM SSL certificate.
+
+### Step 6: Cutover and DNS Transition (Zero-Downtime)
+1. **Warm Up**: Ensure the ECS tasks boot cleanly, connect successfully to RDS and ElastiCache, and pass ALB health checks.
+2. **Double Write/Dual-State (Optional)**: If active sessions are cached in local EC2 Redis, users will have to re-login unless you run the old and new clusters simultaneously. Wait 10 minutes for any running background tasks on the EC2 host to finish.
+3. **DNS Update**: Update your CNAME record in Cloudflare:
+   * Point your backend API subdomain (e.g., `api.factopay.com`) from the EC2 Elastic IP address to the **AWS ALB DNS Name**.
+4. **Monitoring**: Watch the RDS connection count, ALB HTTP status logs, and error telemetry (Sentry/CloudWatch) to ensure traffic flows smoothly to ECS.
+5. **Teardown**: Once traffic is 100% routed through the ALB and ECS Fargate cluster, stop and terminate the old EC2 instance.
+
+### Step 7: Database Migration from RDS to Amazon Aurora (PostgreSQL Cluster / Serverless v2)
+When transaction volumes scale and you are ready to transition the standard RDS database to an Aurora cluster with minimal downtime:
+1. **Provision Aurora Read Replica**:
+   * Go to the AWS RDS console, select the primary `db.t4g.micro` PostgreSQL database.
+   * Under **Actions**, select **Create Aurora Read Replica**.
+   * Configure the target Aurora PostgreSQL DB Cluster (assign engine version compatibility, and specify either provisioned instances or Serverless v2 capacity ranges, e.g. 0.5–4.0 ACUs).
+   * AWS will create a read replica and automatically sync data asynchronously.
+2. **Monitor Replication Lag**:
+   * Check the `ReplicaLag` metric in Amazon CloudWatch. Wait until the replication lag drops to `0`.
+3. **Execute Cutover Window**:
+   * Put your API in a temporary "Maintenance Mode" (or set ECS desired tasks to `0` temporarily) to stop write operations.
+   * Wait for any final transactions to replicate (confirm replica lag remains at `0`).
+   * Select the Aurora Read Replica cluster in the console and choose **Promote**. AWS will elevate the replica into a standalone, primary write-ready cluster (Writer endpoint).
+4. **Update API Connection Endpoint**:
+   * Update the `DATABASE_URL` variable in the SSM Parameter Store to point to the new Aurora Cluster Writer Endpoint.
+   * Scale your ECS Fargate service tasks back up (or out of maintenance mode) to pick up the new database endpoint.
+5. **Standard RDS Teardown**:
+   * Once operations are confirmed healthy on Aurora, terminate the old standard RDS instance to save costs.
+
