@@ -78,6 +78,7 @@ model LedgerEntry {
   description       String   @db.VarChar(255)
   reference_type    String?  @db.VarChar(30)
   reference_id      String?  @db.Uuid
+  settlement_ref    String?  @map("settlement_ref") @db.VarChar(255)
   created_at        DateTime @default(now()) @db.Timestamptz
 
   account           LedgerAccount @relation(fields: [ledger_account_id], references: [id])

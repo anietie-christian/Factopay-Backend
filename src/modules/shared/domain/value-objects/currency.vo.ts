@@ -3,6 +3,7 @@ import { InvalidCurrencyException } from '../exceptions/value-object.exception';
 export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'GHS', 'NGN', 'KES'] as const;
 
 export type CurrencyCodeType = typeof SUPPORTED_CURRENCIES[number];
+export type CurrencyCode = CurrencyCodeType;
 
 export class Currency {
   private readonly code: CurrencyCodeType;

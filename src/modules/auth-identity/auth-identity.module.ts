@@ -9,6 +9,7 @@ import { AdminDashboardController } from './infrastructure/controllers/admin-das
 
 import { RegisterUserUseCase } from './application/use-cases/register-user.use-case';
 import { LoginUseCase } from './application/use-cases/login.use-case';
+import { GenerateOtpUseCase } from './application/use-cases/generate-otp.use-case';
 import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
 import { RefreshTokenUseCase } from './application/use-cases/refresh-token.use-case';
 import { GetProfileUseCase } from './application/use-cases/get-profile.use-case';
@@ -34,6 +35,8 @@ import { SocialAuthService } from './infrastructure/adapters/social-auth.service
 import { JwtStrategy } from './infrastructure/strategy/jwt.strategy';
 import { USER_REPOSITORY_TOKEN } from './domain/repositories/user-repository.interface';
 import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.repository';
+import { OTP_REPOSITORY_TOKEN } from './domain/repositories/otp-repository.interface';
+import { PrismaOtpRepository } from './infrastructure/database/repositories/prisma-otp.repository';
 
 @Module({
   imports: [
@@ -51,6 +54,7 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
     // User endpoints Use Cases
     RegisterUserUseCase,
     LoginUseCase,
+    GenerateOtpUseCase,
     VerifyOtpUseCase,
     RefreshTokenUseCase,
     GetProfileUseCase,
@@ -76,6 +80,10 @@ import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.r
     {
       provide: USER_REPOSITORY_TOKEN,
       useClass: PrismaUserRepository,
+    },
+    {
+      provide: OTP_REPOSITORY_TOKEN,
+      useClass: PrismaOtpRepository,
     },
   ],
   exports: [USER_REPOSITORY_TOKEN, JwtStrategy, PassportModule],

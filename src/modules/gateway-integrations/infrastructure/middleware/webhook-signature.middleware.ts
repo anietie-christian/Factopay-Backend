@@ -4,10 +4,14 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class WebhookSignatureMiddleware implements NestMiddleware {
-  // In production, this would be loaded via ConfigService from environment variables
-  private readonly WEBHOOK_SECRET = 'dummy_webhook_secret_for_mvp';
+  constructor() {
+    if (!process.env.PAYMENT_WEBHOOK_SECRET) {
+      throw new Error('CRITICAL SECURITY ERROR: PAYMENT_WEBHOOK_SECRET environment variable is missing.');
+    }
+  }
 
   use(req: Request, res: Response, next: NextFunction) {
+    const WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET as string;
     const signature = req.headers['x-webhook-signature'];
 
     if (!signature || typeof signature !== 'string') {
@@ -23,7 +27,7 @@ export class WebhookSignatureMiddleware implements NestMiddleware {
     }
 
     const computedHash = crypto
-      .createHmac('sha256', this.WEBHOOK_SECRET)
+      .createHmac('sha256', WEBHOOK_SECRET)
       .update(rawBody)
       .digest('hex');
 
