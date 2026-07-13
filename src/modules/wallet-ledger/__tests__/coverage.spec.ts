@@ -64,11 +64,13 @@ describe('Coverage Specs', () => {
       };
       mockEngine = { validate: jest.fn() };
 
+      const mockConfigService = { get: jest.fn().mockReturnValue('-1000000') } as any;
       useCase = new PostLedgerTransactionUseCase(
         mockPrisma,
         mockWalletRepo,
         mockLedgerRepo,
-        mockEngine
+        mockEngine,
+        mockConfigService
       );
     });
 

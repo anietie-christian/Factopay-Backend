@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ApiKeyThrottlerGuard } from './modules/b2b-gateway/infrastructure/guards/api-key-throttler.guard';
+import { AuditInterceptor } from './modules/audit/infrastructure/interceptors/audit.interceptor';
 import { SharedModule } from './modules/shared/shared.module';
 import { AuthIdentityModule } from './modules/auth-identity/auth-identity.module';
 import { TransferEngineModule } from './modules/transfer-engine/transfer-engine.module';

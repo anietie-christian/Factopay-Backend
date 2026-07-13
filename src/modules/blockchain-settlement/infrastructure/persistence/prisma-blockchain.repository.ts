@@ -149,4 +149,12 @@ export class PrismaBlockchainRepository implements IBlockchainRepository {
 
     return { data, total };
   }
+
+  async runInAdvisoryLock<T>(key: number, fn: (repo: IBlockchainRepository) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key})`;
+      const txRepo = new PrismaBlockchainRepository(tx as any);
+      return fn(txRepo);
+    });
+  }
 }

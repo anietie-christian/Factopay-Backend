@@ -140,6 +140,8 @@ model User {
   socialAccounts  SocialAccount[]
   kycDocuments    KycDocument[]
   kycAttempts     KycVerificationAttempt[]
+  pointsAccount   PointsAccount?
+  gatewayApiKeys  GatewayApiKey[]
 
   @@map("users")
 }
@@ -310,5 +312,82 @@ model StellarWallet {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("stellar_wallets")
+}
+
+model PointsAccount {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  entries   PointsEntry[]
+
+  @@map("points_accounts")
+}
+
+model PointsEntry {
+  id          String        @id @default(uuid()) @db.Uuid
+  accountId   String        @map("account_id") @db.Uuid
+  account     PointsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  amount      Int           
+  reason      String        @db.VarChar(50) // TRANSFER_EARNED, REFERRAL_BONUS, REDEEMED, EXPIRED
+  referenceId String?       @map("reference_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("points_entries")
+}
+
+// ----------------------------------------
+// AUDIT & COMPLIANCE DOMAIN
+// ----------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  action      String   @db.VarChar(50)
+  targetType  String?  @map("target_type") @db.VarChar(30)
+  targetId    String?  @map("target_id") @db.Uuid
+  metadata    Json?    @db.JsonB
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model AlertRecord {
+  id          String   @id @default(uuid()) @db.Uuid
+  ruleName    String   @map("rule_name") @db.VarChar(100)
+  severity    String   @db.VarChar(20) // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  status      String   @default("OPEN") @db.VarChar(20) // "OPEN", "INVESTIGATING", "RESOLVED"
+  targetId    String?  @map("target_id") @db.Uuid
+  targetType  String?  @map("target_type") @db.VarChar(50)
+  metadata    Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([ruleName])
+  @@map("alert_records")
+}
+
+// ----------------------------------------
+// B2B GATEWAY DOMAIN
+// ----------------------------------------
+
+model GatewayApiKey {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  keyHash       String   @unique @map("key_hash") @db.VarChar(255)
+  isActive      Boolean  @default(true) @map("is_active")
+  rateLimitTier Int      @default(10) @map("rate_limit_tier") // requests per second
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gateway_api_keys")
 }
 

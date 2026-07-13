@@ -15,8 +15,8 @@ export function bullBoardAuthMiddleware(req: Request, res: Response, next: NextF
 
   const expectedUserBuf = Buffer.from(expectedUser);
   const expectedPassBuf = Buffer.from(expectedPass);
-  const loginBuf = Buffer.from(login);
-  const passBuf = Buffer.from(password);
+  const loginBuf = Buffer.from(login || '');
+  const passBuf = Buffer.from(password || '');
 
   if (
     loginBuf.length === expectedUserBuf.length &&

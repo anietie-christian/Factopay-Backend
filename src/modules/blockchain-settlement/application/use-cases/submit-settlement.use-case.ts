@@ -84,37 +84,41 @@ export class SubmitSettlementUseCase {
       );
     }
 
-    // 3. Security Check: Amount & Daily Outflow limits
-    const limitCheck = await this.limits.checkLimits(amount);
-    if (!limitCheck.allowed) {
-      throw new BlockchainSettlementException(
-        limitCheck.reason || BlockchainErrorCode.AMOUNT_EXCEEDS_LIMIT,
-        limitCheck.details || 'Outflow limit checks failed',
-      );
-    }
-
-    // 4. Create/Reset PENDING transaction record
+    // 3 & 4. Security Check & PENDING Record Creation (Wrapped in Transaction + Lock to prevent concurrency race bypass)
     let dbTx: BlockchainTransaction;
-    if (existingTx) {
-      // Reuse the existing failed transaction row to respect the unique constraint on transferId
-      dbTx = await this.repository.updateTransactionStatus(existingTx.id, {
-        status: 'PENDING',
-        txHash: null,
-        ledger: null,
-        errorCode: null,
-        errorMessage: null,
-      });
-    } else {
-      const masterWalletPublicKey = this.configService.get<string>('STELLAR_MASTER_PUBLIC', 'GMASTERDEFAULT');
-      dbTx = await this.repository.createTransaction({
-        transferId,
-        sourceAddress: masterWalletPublicKey,
-        destAddress: destinationPublicKey,
-        amount,
-        memo,
-        status: 'PENDING',
-      });
-    }
+    const masterWalletPublicKey = this.configService.get<string>('STELLAR_MASTER_PUBLIC', 'GMASTERDEFAULT');
+
+    const MASTER_WALLET_SETTLEMENT_LOCK_KEY = 847293;
+
+    await this.repository.runInAdvisoryLock(MASTER_WALLET_SETTLEMENT_LOCK_KEY, async (txRepo) => {
+      // Limits check now runs within the serialized context of the lock
+      const limitCheck = await this.limits.checkLimits(amount);
+      if (!limitCheck.allowed) {
+        throw new BlockchainSettlementException(
+          limitCheck.reason || BlockchainErrorCode.AMOUNT_EXCEEDS_LIMIT,
+          limitCheck.details || 'Outflow limit checks failed',
+        );
+      }
+
+      if (existingTx) {
+        dbTx = await txRepo.updateTransactionStatus(existingTx.id, {
+          status: 'PENDING',
+          txHash: null,
+          ledger: null,
+          errorCode: null,
+          errorMessage: null,
+        });
+      } else {
+        dbTx = await txRepo.createTransaction({
+          transferId,
+          sourceAddress: masterWalletPublicKey,
+          destAddress: destinationPublicKey,
+          amount,
+          memo,
+          status: 'PENDING',
+        });
+      }
+    });
 
     try {
       // 5. Submit payment transaction

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InitiateTransferUseCase } from '../application/use-cases/initiate-transfer.use-case';
 import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
 import { RedisService } from '../../shared/infrastructure/cache/redis.service';
@@ -47,6 +48,10 @@ describe('InitiateTransferUseCase', () => {
           provide: ReverseLedgerTransactionUseCase,
           useValue: { execute: jest.fn() },
         },
+        {
+          provide: EventEmitter2,
+          useValue: { emit: jest.fn() },
+        }
       ],
     }).compile();
 

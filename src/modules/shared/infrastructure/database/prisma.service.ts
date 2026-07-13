@@ -1,9 +1,10 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PrismaService.name);
   /**
    * A separate PrismaClient instance that connects directly to Postgres,
    * bypassing pgbouncer. Used exclusively for interactive transactions
@@ -13,23 +14,42 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private directClient: PrismaClient;
 
   constructor(private readonly configService: ConfigService) {
+    const pooledUrl = configService.get<string>('DATABASE_URL') || '';
+
+    // Item 6: Validate ?pgbouncer=true is present on pooled connection string
+    if (pooledUrl && !pooledUrl.includes('pgbouncer=true')) {
+      // Log a warning — missing pgbouncer=true causes DEALLOCATE ALL round trips
+      // that add latency on every prepared statement
+      new Logger(PrismaService.name).warn(
+        'DATABASE_URL is missing ?pgbouncer=true — this will cause unnecessary DEALLOCATE ALL round trips',
+      );
+    }
+
     // Main client uses DATABASE_URL (pgbouncer pooled) for normal CRUD
     super({
       datasources: {
         db: {
-          url: configService.get<string>('DATABASE_URL'),
+          url: pooledUrl,
         },
       },
       log: [{ emit: 'event', level: 'query' }],
     });
 
     // Direct client uses DIRECT_URL (unpooled) for interactive transactions
-    const directUrl = configService.get<string>('DIRECT_URL');
-    console.log('PRISMA SERVICE: DIRECT_URL is', directUrl ? 'SET' : 'UNDEFINED');
+    // Item 5: Explicit connection_limit — interactive transactions are serialized
+    // by advisory locks, but we need enough direct connections to handle peak 
+    // concurrent transfers without artificial client-side queuing.
+    const directUrl = configService.get<string>('DIRECT_URL') || '';
+    const directConnectionLimit = configService.get<number>('DIRECT_CONNECTION_LIMIT', 20);
+    const directUrlWithLimit = directUrl
+      ? this.appendConnectionLimit(directUrl, directConnectionLimit)
+      : pooledUrl;
+
+    this.logger.debug(`DIRECT_URL is ${directUrl ? 'SET' : 'UNDEFINED'} (connection_limit=${directConnectionLimit})`);
     this.directClient = new PrismaClient({
       datasources: {
         db: {
-          url: directUrl || configService.get<string>('DATABASE_URL'),
+          url: directUrlWithLimit,
         },
       },
       log: [{ emit: 'event', level: 'query' }],
@@ -42,12 +62,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     // @ts-ignore
     this.$on('query', (e: any) => {
-      console.log(`[Main DB] Query took ${e.duration}ms: ${e.query.substring(0, 100)}...`);
+      this.logger.debug(`[Main DB] Query took ${e.duration}ms: ${e.query.substring(0, 100)}...`);
     });
 
     // @ts-ignore
     this.directClient.$on('query', (e: any) => {
-      console.log(`[Direct DB] Query took ${e.duration}ms: ${e.query.substring(0, 100)}...`);
+      this.logger.debug(`[Direct DB] Query took ${e.duration}ms: ${e.query.substring(0, 100)}...`);
     });
   }
 
@@ -65,5 +85,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     options?: { maxWait?: number; timeout?: number },
   ): Promise<T> {
     return this.directClient.$transaction(fn, options);
+  }
+
+  /**
+   * Appends connection_limit to a Prisma connection URL if not already present.
+   */
+  private appendConnectionLimit(url: string, limit: number): string {
+    if (url.includes('connection_limit=')) {
+      return url;
+    }
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}connection_limit=${limit}`;
   }
 }

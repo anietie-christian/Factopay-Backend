@@ -66,4 +66,9 @@ export interface IBlockchainRepository {
     page: number;
     limit: number;
   }): Promise<{ data: StellarWallet[]; total: number }>;
+
+  /**
+   * Executes a block of operations within a transactional advisory lock.
+   */
+  runInAdvisoryLock<T>(key: number, fn: (repo: IBlockchainRepository) => Promise<T>): Promise<T>;
 }

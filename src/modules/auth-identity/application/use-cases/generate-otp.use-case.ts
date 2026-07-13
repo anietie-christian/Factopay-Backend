@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { GenerateOtpDto } from '../dtos/generate-otp.dto';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
 import { IOtpRepository, OTP_REPOSITORY_TOKEN } from '../../domain/repositories/otp-repository.interface';
@@ -8,6 +8,8 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class GenerateOtpUseCase {
+  private readonly logger = new Logger(GenerateOtpUseCase.name);
+
   constructor(
     @Inject(USER_REPOSITORY_TOKEN)
     private readonly userRepository: IUserRepository,
@@ -49,7 +51,7 @@ export class GenerateOtpUseCase {
 
     // In a real scenario, this is where you'd trigger the SMS/Email provider adapter.
     // We log it here for dev/testing instead of returning it to prevent exposure.
-    console.log(`[DEV ONLY] Generated ${dto.type} OTP for user ${user.email}: ${rawCode}`);
+    this.logger.debug(`[DEV ONLY] Generated ${dto.type} OTP for user ${user.email}: ${rawCode}`);
 
     return {
       success: true,
