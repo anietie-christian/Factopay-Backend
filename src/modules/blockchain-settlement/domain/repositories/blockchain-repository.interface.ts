@@ -68,6 +68,16 @@ export interface IBlockchainRepository {
   }): Promise<{ data: StellarWallet[]; total: number }>;
 
   /**
+   * Calculates the sum of transaction amounts matching specified parameters.
+   */
+  getSummedAmount(
+    sourceAddress: string,
+    statuses: string[],
+    start: Date,
+    end: Date,
+  ): Promise<Prisma.Decimal>;
+
+  /**
    * Executes a block of operations within a transactional advisory lock.
    */
   runInAdvisoryLock<T>(key: number, fn: (repo: IBlockchainRepository) => Promise<T>): Promise<T>;

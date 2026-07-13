@@ -4,6 +4,7 @@ import { IKycRepository, BasicProfile } from '../../domain/repositories/kyc.repo
 import { User, Role, KycStatus as UserKycStatus } from '../../../auth-identity/domain/models/user.model';
 import { KycDocument, KycDocumentStatus } from '../../domain/models/kyc-document.model';
 import { KycVerificationAttempt, KycAttemptStatus } from '../../domain/models/kyc-attempt.model';
+import { PiiCrypt } from '../../../auth-identity/infrastructure/security/pii-crypt';
 import {
   KycDocument as PrismaKycDocument,
   KycVerificationAttempt as PrismaKycAttempt,
@@ -61,7 +62,7 @@ export class PrismaKycRepository implements IKycRepository {
         id: document.id,
         userId: document.userId,
         documentType: document.documentType,
-        documentUrl: document.documentUrl,
+        documentUrl: PiiCrypt.encrypt(document.documentUrl) || '',
         status: document.status,
       },
     });
@@ -126,7 +127,7 @@ export class PrismaKycRepository implements IKycRepository {
     const user = new User(
       prismaUser.id,
       prismaUser.email,
-      prismaUser.phoneNumber,
+      PiiCrypt.decrypt(prismaUser.phoneNumber),
       prismaUser.passwordHash,
       prismaUser.isEmailVerified,
       prismaUser.isPhoneVerified,
@@ -173,7 +174,7 @@ export class PrismaKycRepository implements IKycRepository {
       prismaDoc.id,
       prismaDoc.userId,
       prismaDoc.documentType as KycDocumentType,
-      prismaDoc.documentUrl,
+      PiiCrypt.decrypt(prismaDoc.documentUrl) || '',
       prismaDoc.status as KycDocumentStatus,
       prismaDoc.rejectionReason,
       prismaDoc.createdAt,

@@ -150,6 +150,33 @@ export class PrismaBlockchainRepository implements IBlockchainRepository {
     return { data, total };
   }
 
+  async getSummedAmount(
+    sourceAddress: string,
+    statuses: string[],
+    start: Date,
+    end: Date,
+  ): Promise<Prisma.Decimal> {
+    const transactions = await this.prisma.blockchainTransaction.findMany({
+      where: {
+        sourceAddress,
+        status: { in: statuses },
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      select: {
+        amount: true,
+      },
+    });
+
+    let total = new Prisma.Decimal(0);
+    for (const tx of transactions) {
+      total = total.plus(tx.amount);
+    }
+    return total;
+  }
+
   async runInAdvisoryLock<T>(key: number, fn: (repo: IBlockchainRepository) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key})`;

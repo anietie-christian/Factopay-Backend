@@ -14,7 +14,6 @@ import {
   BlockchainSettlementException,
 } from '../../domain/errors/blockchain-errors';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 
 @Injectable()
 export class MintTestUsdcUseCase {
@@ -28,7 +27,6 @@ export class MintTestUsdcUseCase {
     @Inject(BLOCKCHAIN_REPOSITORY_TOKEN)
     private readonly repository: IBlockchainRepository,
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
   ) {}
 
   async execute(destinationPublicKey: string, amount: string): Promise<StellarTransactionResult> {
@@ -64,24 +62,12 @@ export class MintTestUsdcUseCase {
     const issuerPublicKey = this.configService.get<string>('STELLAR_USDC_ISSUER_PUBLIC', '');
     
     // Sum successful mints created today
-    const dailyMints = await this.prisma.blockchainTransaction.findMany({
-      where: {
-        sourceAddress: issuerPublicKey,
-        status: 'SUCCESS',
-        createdAt: {
-          gte: startOfUtcDay,
-          lte: endOfUtcDay,
-        },
-      },
-      select: {
-        amount: true,
-      },
-    });
-
-    let dailyTotal = new Decimal(0);
-    for (const mint of dailyMints) {
-      dailyTotal = dailyTotal.plus(mint.amount);
-    }
+    const dailyTotal = await this.repository.getSummedAmount(
+      issuerPublicKey,
+      ['SUCCESS'],
+      startOfUtcDay,
+      endOfUtcDay,
+    );
 
     const projectedTotal = dailyTotal.plus(mintAmount);
     if (projectedTotal.greaterThan(this.dailyMintCap)) {

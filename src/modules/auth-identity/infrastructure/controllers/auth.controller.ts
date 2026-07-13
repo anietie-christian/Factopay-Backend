@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Request, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Request, UseGuards, HttpCode, HttpStatus, Ip, Headers } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -10,6 +10,7 @@ import { RefreshTokenDto } from '../../application/dtos/refresh-token.dto';
 import { SocialVerifyDto } from '../../application/dtos/social-verify.dto';
 import { CompleteSocialSignupDto } from '../../application/dtos/complete-social-signup.dto';
 import { VerifyMfaDto } from '../../application/dtos/verify-mfa.dto';
+import { SessionBindingService } from '../security/session-binding.service';
 
 import { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
 import { LoginUseCase } from '../../application/use-cases/login.use-case';
@@ -57,8 +58,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Log in with credentials' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials or deactivated account' })
-  async login(@Body() loginDto: LoginDto) {
-    return this.loginUseCase.execute(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
+    return this.loginUseCase.execute(loginDto, fingerprint);
   }
 
   @Post('otp/generate')
@@ -87,8 +93,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Rotate/refresh expired access token' })
   @ApiResponse({ status: 200, description: 'Tokens successfully refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.refreshTokenUseCase.execute(refreshTokenDto);
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
+    return this.refreshTokenUseCase.execute(refreshTokenDto, fingerprint);
   }
 
   @Post('mfa/setup')
@@ -130,11 +141,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify MFA code during login' })
   @ApiResponse({ status: 200, description: 'MFA verified, returns access/refresh token session' })
   @ApiResponse({ status: 401, description: 'Invalid code or token' })
-  async mfaVerify(@Body() body: VerifyMfaDto) {
+  async mfaVerify(
+    @Body() body: VerifyMfaDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
     if (!body.mfaToken) {
       throw new Error('MFA token is required for public verification');
     }
-    return this.verifyMfaUseCase.execute(body.mfaToken, body.code);
+    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
+    return this.verifyMfaUseCase.execute(body.mfaToken, body.code, fingerprint);
   }
 
   @Post('social/verify')
@@ -143,8 +159,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify Social OAuth Token (Google/Apple)' })
   @ApiResponse({ status: 200, description: 'Returns token session, MFA challenge, or pending signup state' })
   @ApiResponse({ status: 400, description: 'Invalid provider token' })
-  async socialVerify(@Body() body: SocialVerifyDto) {
-    return this.socialVerifyUseCase.execute(body.provider, body.token);
+  async socialVerify(
+    @Body() body: SocialVerifyDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
+    return this.socialVerifyUseCase.execute(body.provider, body.token, fingerprint);
   }
 
   @Post('social/complete-signup')
@@ -152,7 +173,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Complete Social Sign up by associating a phone number' })
   @ApiResponse({ status: 200, description: 'Returns final JWT session tokens' })
   @ApiResponse({ status: 409, description: 'Phone number already registered' })
-  async socialCompleteSignup(@Body() body: CompleteSocialSignupDto) {
-    return this.completeSocialSignupUseCase.execute(body.registrationToken, body.phoneNumber);
+  async socialCompleteSignup(
+    @Body() body: CompleteSocialSignupDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
+    return this.completeSocialSignupUseCase.execute(body.registrationToken, body.phoneNumber, fingerprint);
   }
 }

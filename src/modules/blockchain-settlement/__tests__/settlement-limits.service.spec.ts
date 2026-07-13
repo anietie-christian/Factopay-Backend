@@ -1,19 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SettlementLimitsService } from '../infrastructure/security/settlement-limits.service';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
+import { BLOCKCHAIN_REPOSITORY_TOKEN, IBlockchainRepository } from '../domain/repositories/blockchain-repository.interface';
 import { BlockchainErrorCode } from '../domain/errors/blockchain-errors';
+import { Decimal } from '@prisma/client/runtime/library';
 
 describe('SettlementLimitsService Concurrency Test', () => {
   let service: SettlementLimitsService;
-  let prisma: jest.Mocked<PrismaService>;
+  let repository: jest.Mocked<IBlockchainRepository>;
   let configService: jest.Mocked<ConfigService>;
 
   beforeEach(async () => {
-    prisma = {
-      blockchainTransaction: {
-        findMany: jest.fn(),
-      },
+    repository = {
+      getSummedAmount: jest.fn(),
     } as any;
 
     configService = {
@@ -28,7 +27,7 @@ describe('SettlementLimitsService Concurrency Test', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SettlementLimitsService,
-        { provide: PrismaService, useValue: prisma },
+        { provide: BLOCKCHAIN_REPOSITORY_TOKEN, useValue: repository },
         { provide: ConfigService, useValue: configService },
       ],
     }).compile();
@@ -37,35 +36,23 @@ describe('SettlementLimitsService Concurrency Test', () => {
   });
 
   it('should include PENDING transactions in the daily limit outflow calculation', async () => {
-    // Mock the DB returning 3 pending transactions of 30,000 each (Total 90,000)
-    // + 1 completed transaction of 5,000
-    // Total so far: 95,000
-    (prisma.blockchainTransaction.findMany as jest.Mock).mockResolvedValueOnce([
-      { amount: 30000, status: 'PENDING' },
-      { amount: 30000, status: 'PENDING_VERIFICATION' },
-      { amount: 30000, status: 'PENDING' },
-      { amount: 5000, status: 'SUCCESS' },
-    ]);
+    // Mock the repo returning total daily outflow of 95,000
+    (repository.getSummedAmount as jest.Mock).mockResolvedValueOnce(new Decimal('95000'));
 
     // Attempting a 6,000 transfer should fail because 95,000 + 6,000 = 101,000 > 100,000
     const result = await service.checkLimits('6000');
 
-    expect(prisma.blockchainTransaction.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: { in: ['SUCCESS', 'PENDING', 'PENDING_VERIFICATION'] },
-          sourceAddress: 'MASTER_KEY',
-        }),
-      })
+    expect(repository.getSummedAmount).toHaveBeenCalledWith(
+      'MASTER_KEY',
+      ['SUCCESS', 'PENDING', 'PENDING_VERIFICATION'],
+      expect.any(Date),
+      expect.any(Date)
     );
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe(BlockchainErrorCode.DAILY_OUTFLOW_EXCEEDED);
   });
 
   it('should simulate a concurrency race where two rapid requests correctly share the same locked PENDING state', async () => {
-    // If they were executing concurrently, they would both query the DB.
-    // Our fix in the usecase ensures that before pushing to Stellar, it is inserted as PENDING
-    // But since this is a unit test of the limits check, we just prove the limits check itself queries for PENDING
     expect(true).toBe(true); 
   });
 });

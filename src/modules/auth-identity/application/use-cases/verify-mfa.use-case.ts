@@ -13,7 +13,7 @@ export class VerifyMfaUseCase {
     private readonly jwtService: JwtService,
   ) {}
 
-  async execute(mfaToken: string, code: string): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
+  async execute(mfaToken: string, code: string, fingerprint?: string): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
     let payload: any;
     try {
       payload = this.jwtService.verify(mfaToken);
@@ -71,6 +71,7 @@ export class VerifyMfaUseCase {
       email: user.email,
       role: user.role,
       kycStatus: user.kycStatus,
+      ...(fingerprint && { fpt: fingerprint }),
     };
 
     // Generate JWT access and refresh tokens

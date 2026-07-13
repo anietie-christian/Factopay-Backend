@@ -26,7 +26,7 @@ export class SocialVerifyUseCase {
     private readonly jwtService: JwtService,
   ) { }
 
-  async execute(provider: 'GOOGLE' | 'APPLE', token: string): Promise<SocialVerifyResult> {
+  async execute(provider: 'GOOGLE' | 'APPLE', token: string, fingerprint?: string): Promise<SocialVerifyResult> {
     // 1. Verify token with provider
     const socialProfile = await this.socialAuthService.verifyToken(provider, token);
 
@@ -34,7 +34,7 @@ export class SocialVerifyUseCase {
     let user = await this.userRepository.findBySocialProvider(provider, socialProfile.providerId);
 
     if (user) {
-      return this.handleExistingUserLogin(user);
+      return this.handleExistingUserLogin(user, fingerprint);
     }
 
     // 3. If no social account mapping exists, check if user exists by email
@@ -42,7 +42,7 @@ export class SocialVerifyUseCase {
     if (userByEmail) {
       // Link social account to existing user
       await this.userRepository.linkSocialAccount(userByEmail.id, provider, socialProfile.providerId);
-      return this.handleExistingUserLogin(userByEmail);
+      return this.handleExistingUserLogin(userByEmail, fingerprint);
     }
 
     // 4. Create new user account with no password/phone (PENDING signup stage)
@@ -81,7 +81,7 @@ export class SocialVerifyUseCase {
     };
   }
 
-  private async handleExistingUserLogin(user: User): Promise<SocialVerifyResult> {
+  private async handleExistingUserLogin(user: User, fingerprint?: string): Promise<SocialVerifyResult> {
     if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
@@ -121,6 +121,7 @@ export class SocialVerifyUseCase {
       email: user.email,
       role: user.role,
       kycStatus: user.kycStatus,
+      ...(fingerprint && { fpt: fingerprint }),
     };
 
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });

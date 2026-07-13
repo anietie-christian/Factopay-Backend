@@ -92,7 +92,7 @@ export class SubmitSettlementUseCase {
 
     await this.repository.runInAdvisoryLock(MASTER_WALLET_SETTLEMENT_LOCK_KEY, async (txRepo) => {
       // Limits check now runs within the serialized context of the lock
-      const limitCheck = await this.limits.checkLimits(amount);
+      const limitCheck = await this.limits.checkLimits(amount, txRepo);
       if (!limitCheck.allowed) {
         throw new BlockchainSettlementException(
           limitCheck.reason || BlockchainErrorCode.AMOUNT_EXCEEDS_LIMIT,

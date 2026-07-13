@@ -12,10 +12,14 @@ export class RefreshTokenUseCase {
     private readonly jwtService: JwtService,
   ) {}
 
-  async execute(dto: RefreshTokenDto): Promise<{ accessToken: string; refreshToken: string }> {
+  async execute(dto: RefreshTokenDto, fingerprint?: string): Promise<{ accessToken: string; refreshToken: string }> {
     try {
       // Decode and verify the refresh token
       const payload: JwtPayload = this.jwtService.verify(dto.refreshToken);
+
+      if (payload.fpt && fingerprint && payload.fpt !== fingerprint) {
+        throw new UnauthorizedException('Token binding mismatch');
+      }
 
       const user = await this.userRepository.findById(payload.sub);
       if (!user || !user.isActive) {
@@ -28,6 +32,7 @@ export class RefreshTokenUseCase {
         email: user.email,
         role: user.role,
         kycStatus: user.kycStatus,
+        ...(fingerprint && { fpt: fingerprint }),
       };
 
       // Generate fresh tokens

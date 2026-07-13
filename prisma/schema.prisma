@@ -117,7 +117,8 @@ model Transfer {
 model User {
   id              String   @id @default(uuid()) @db.Uuid
   email           String   @unique @db.VarChar(255)
-  phoneNumber     String?  @unique @map("phone_number") @db.VarChar(20)
+  phoneNumber     String?  @map("phone_number") @db.VarChar(255)
+  phoneNumberIndex String? @unique @map("phone_number_index") @db.VarChar(64)
   passwordHash    String?  @map("password_hash") @db.VarChar(255)
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   isPhoneVerified Boolean  @default(false) @map("is_phone_verified")
@@ -233,7 +234,7 @@ model KycDocument {
   id              String            @id @default(uuid()) @db.Uuid
   userId          String            @map("user_id") @db.Uuid
   documentType    KycDocumentType   @map("document_type")
-  documentUrl     String            @map("document_url") @db.VarChar(500)
+  documentUrl     String            @map("document_url") @db.Text
   status          KycDocumentStatus @default(PENDING)
   rejectionReason String?           @map("rejection_reason") @db.VarChar(255)
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz
@@ -365,6 +366,9 @@ model AlertRecord {
   targetId    String?  @map("target_id") @db.Uuid
   targetType  String?  @map("target_type") @db.VarChar(50)
   metadata    Json?    @db.JsonB
+  reviewed    Boolean  @default(false)
+  reviewedBy  String?  @map("reviewed_by") @db.Uuid
+  reviewedAt  DateTime? @map("reviewed_at") @db.Timestamptz
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([status, createdAt])

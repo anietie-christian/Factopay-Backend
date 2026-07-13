@@ -70,6 +70,8 @@ describe('Blockchain Settlement Use Cases', () => {
       updateTransactionStatus: jest.fn().mockImplementation((id, data) => Promise.resolve({ id, ...data, createdAt: new Date() })),
       findManyTransactions: jest.fn().mockResolvedValue({ data: [], total: 0 }),
       findManyWallets: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+      runInAdvisoryLock: jest.fn().mockImplementation((key, fn) => fn(mockRepository)),
+      getSummedAmount: jest.fn().mockResolvedValue(new (require('@prisma/client/runtime/library').Decimal)('0')),
     };
 
     mockAllowlist = {

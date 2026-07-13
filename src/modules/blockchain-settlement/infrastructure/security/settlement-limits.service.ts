@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
+import { IBlockchainRepository, BLOCKCHAIN_REPOSITORY_TOKEN } from '../../domain/repositories/blockchain-repository.interface';
 import { Decimal } from '@prisma/client/runtime/library';
 import { BlockchainErrorCode } from '../../domain/errors/blockchain-errors';
 
@@ -11,7 +11,8 @@ export class SettlementLimitsService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
+    @Inject(BLOCKCHAIN_REPOSITORY_TOKEN)
+    private readonly repository: IBlockchainRepository,
   ) {
     const defaultMaxTx = this.configService.get<string>('STELLAR_MAX_TX_AMOUNT', '10000.0000');
     const defaultMaxDaily = this.configService.get<string>('STELLAR_MAX_DAILY_OUTFLOW', '100000.0000');
@@ -23,7 +24,10 @@ export class SettlementLimitsService {
   /**
    * Verifies if a transaction amount is within the allowed limits.
    */
-  public async checkLimits(amount: string | number | Decimal): Promise<{
+  public async checkLimits(
+    amount: string | number | Decimal,
+    repo?: IBlockchainRepository,
+  ): Promise<{
     allowed: boolean;
     reason?: BlockchainErrorCode;
     details?: string;
@@ -49,26 +53,13 @@ export class SettlementLimitsService {
     // Only count outflows from the MASTER settlement wallet, not ISSUER mints
     const masterPublicKey = this.configService.get<string>('STELLAR_MASTER_PUBLIC', '');
 
-    const dailyTransactions = await this.prisma.blockchainTransaction.findMany({
-      where: {
-        status: {
-          in: ['SUCCESS', 'PENDING', 'PENDING_VERIFICATION'],
-        },
-        ...(masterPublicKey ? { sourceAddress: masterPublicKey } : {}),
-        createdAt: {
-          gte: startOfUtcDay,
-          lte: endOfUtcDay,
-        },
-      },
-      select: {
-        amount: true,
-      },
-    });
-
-    let currentOutflow = new Decimal(0);
-    for (const tx of dailyTransactions) {
-      currentOutflow = currentOutflow.plus(tx.amount);
-    }
+    const activeRepo = repo || this.repository;
+    const currentOutflow = await activeRepo.getSummedAmount(
+      masterPublicKey,
+      ['SUCCESS', 'PENDING', 'PENDING_VERIFICATION'],
+      startOfUtcDay,
+      endOfUtcDay,
+    );
 
     const projectedOutflow = currentOutflow.plus(decimalAmount);
     if (projectedOutflow.greaterThan(this.maxDailyOutflow)) {

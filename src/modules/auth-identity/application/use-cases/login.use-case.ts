@@ -12,7 +12,7 @@ export class LoginUseCase {
     private readonly jwtService: JwtService,
   ) {}
 
-  async execute(dto: LoginDto): Promise<{ mfaRequired: boolean; mfaToken?: string; accessToken?: string; refreshToken?: string; userId?: string; email?: string; kycStatus?: string }> {
+  async execute(dto: LoginDto, fingerprint?: string): Promise<{ mfaRequired: boolean; mfaToken?: string; accessToken?: string; refreshToken?: string; userId?: string; email?: string; kycStatus?: string }> {
     const user = await this.userRepository.findByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -54,6 +54,7 @@ export class LoginUseCase {
       email: user.email,
       role: user.role,
       kycStatus: user.kycStatus,
+      ...(fingerprint && { fpt: fingerprint }),
     };
 
     // Generate JWT and refresh token

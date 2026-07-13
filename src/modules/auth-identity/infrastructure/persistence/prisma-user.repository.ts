@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { IUserRepository } from '../../domain/repositories/user-repository.interface';
 import { User, Role, KycStatus } from '../../domain/models/user.model';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
+import { PiiCrypt } from '../security/pii-crypt';
 
 @Injectable()
 export class PrismaUserRepository implements IUserRepository {
@@ -11,7 +12,7 @@ export class PrismaUserRepository implements IUserRepository {
     return new User(
       dbUser.id,
       dbUser.email,
-      dbUser.phoneNumber,
+      PiiCrypt.decrypt(dbUser.phoneNumber),
       dbUser.passwordHash,
       dbUser.isEmailVerified,
       dbUser.isPhoneVerified,
@@ -32,7 +33,8 @@ export class PrismaUserRepository implements IUserRepository {
     return {
       id: user.id,
       email: user.email,
-      phoneNumber: user.phoneNumber,
+      phoneNumber: PiiCrypt.encrypt(user.phoneNumber),
+      phoneNumberIndex: PiiCrypt.generateBlindIndex(user.phoneNumber),
       passwordHash: user.getPasswordHash(),
       isEmailVerified: user.isEmailVerified,
       isPhoneVerified: user.isPhoneVerified,
@@ -66,8 +68,10 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async findByPhoneNumber(phoneNumber: string): Promise<User | null> {
+    const index = PiiCrypt.generateBlindIndex(phoneNumber);
+    if (!index) return null;
     const dbUser = await this.prisma.user.findUnique({
-      where: { phoneNumber },
+      where: { phoneNumberIndex: index },
     });
     if (!dbUser) return null;
     return this.toDomain(dbUser);
@@ -105,6 +109,7 @@ export class PrismaUserRepository implements IUserRepository {
       update: {
         email: data.email,
         phoneNumber: data.phoneNumber,
+        phoneNumberIndex: data.phoneNumberIndex,
         passwordHash: data.passwordHash,
         isEmailVerified: data.isEmailVerified,
         isPhoneVerified: data.isPhoneVerified,

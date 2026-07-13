@@ -42,8 +42,12 @@ describe('RatesController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await prisma.user.delete({ where: { email: 'fx-e2e-test@factopay.com' } }).catch(() => {});
-    await app.close();
+    if (prisma?.user) {
+      await prisma.user.delete({ where: { email: 'fx-e2e-test@factopay.com' } }).catch(() => {});
+    }
+    if (app) {
+      await app.close();
+    }
   });
 
   it('/rates/live (GET) should return 200 and rate data', async () => {

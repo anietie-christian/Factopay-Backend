@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ApiKeyThrottlerGuard } from './modules/b2b-gateway/infrastructure/guards/api-key-throttler.guard';
-import { AuditInterceptor } from './modules/audit/infrastructure/interceptors/audit.interceptor';
+import { APP_GUARD } from '@nestjs/core';
 import { SharedModule } from './modules/shared/shared.module';
 import { AuthIdentityModule } from './modules/auth-identity/auth-identity.module';
 import { TransferEngineModule } from './modules/transfer-engine/transfer-engine.module';
@@ -13,11 +11,15 @@ import { BlockchainSettlementModule } from './modules/blockchain-settlement/bloc
 import { WalletLedgerModule } from './modules/wallet-ledger/wallet-ledger.module';
 import { NotificationModule } from './modules/notification-service/notification.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { AuditModule } from './modules/audit/audit.module';
+import { AuditComplianceModule } from './modules/audit-compliance/audit-compliance.module';
+import { secretsLoader } from './config/secrets.loader';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [secretsLoader],
     }),
     ThrottlerModule.forRoot([
       {
@@ -34,6 +36,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     BlockchainSettlementModule,
     WalletLedgerModule,
     NotificationModule,
+    AuditModule,
+    AuditComplianceModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [],
