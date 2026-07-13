@@ -9,6 +9,7 @@ import { GatewayIntegrationsModule } from './modules/gateway-integrations/gatewa
 import { KycManagementModule } from './modules/kyc-management/kyc-management.module';
 import { BlockchainSettlementModule } from './modules/blockchain-settlement/blockchain-settlement.module';
 import { WalletLedgerModule } from './modules/wallet-ledger/wallet-ledger.module';
+import { NotificationModule } from './modules/notification-service/notification.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
@@ -30,6 +31,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     KycManagementModule,
     BlockchainSettlementModule,
     WalletLedgerModule,
+    NotificationModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [],

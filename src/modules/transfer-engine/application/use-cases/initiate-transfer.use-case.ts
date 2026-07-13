@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InitiateTransferDto } from '../dtos/initiate-transfer.dto';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { RedisService } from '../../../shared/infrastructure/cache/redis.service';
@@ -17,6 +18,7 @@ export class InitiateTransferUseCase {
     private readonly submitSettlementUseCase: SubmitSettlementUseCase,
     private readonly postLedgerTransactionUseCase: PostLedgerTransactionUseCase,
     private readonly reverseLedgerTransactionUseCase: ReverseLedgerTransactionUseCase,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async execute(userId: string, dto: InitiateTransferDto, idempotencyKey: string) {
@@ -209,6 +211,13 @@ export class InitiateTransferUseCase {
         where: { id: transfer.id },
         data: { status: 'FAILED' },
       });
+      this.eventEmitter.emit('transfer.failed', {
+        transferId: transfer.id,
+        userId: transfer.userId,
+        amount: dto.amount,
+        currency: dto.currency,
+        recipientId: dto.recipientId,
+      });
       throw error;
     }
 
@@ -229,6 +238,13 @@ export class InitiateTransferUseCase {
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
+      });
+      this.eventEmitter.emit('transfer.failed', {
+        transferId: transfer.id,
+        userId: transfer.userId,
+        amount: dto.amount,
+        currency: dto.currency,
+        recipientId: dto.recipientId,
       });
       throw new BadRequestException('Recipient does not have a provisioned Stellar wallet');
     }
@@ -251,6 +267,16 @@ export class InitiateTransferUseCase {
         data: { status: finalStatus },
       });
 
+      if (finalStatus === 'COMPLETED') {
+        this.eventEmitter.emit('transfer.completed', {
+          transferId: transfer.id,
+          userId: transfer.userId,
+          amount: dto.amount,
+          currency: dto.currency,
+          recipientId: dto.recipientId,
+        });
+      }
+
       return { success: true, transferId: transfer.id, status: finalStatus };
     } catch (error) {
       // Record failure state and reverse the ledger
@@ -258,6 +284,13 @@ export class InitiateTransferUseCase {
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
+      });
+      this.eventEmitter.emit('transfer.failed', {
+        transferId: transfer.id,
+        userId: transfer.userId,
+        amount: dto.amount,
+        currency: dto.currency,
+        recipientId: dto.recipientId,
       });
       throw error;
     }
