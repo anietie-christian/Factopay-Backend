@@ -29,11 +29,12 @@ export class AuditInterceptor implements NestInterceptor {
     // Attempt to parse a target ID from response or request
     const targetId = params?.id || body?.id || null;
 
-    let action = `[${method}] ${url}`;
+    const pathOnly = url ? url.split('?')[0] : '';
+    let action = `[${method}] ${pathOnly}`.substring(0, 50);
     let targetType = 'ENDPOINT';
     
     if (auditOptions) {
-      action = auditOptions.action;
+      action = auditOptions.action.substring(0, 50);
       if (auditOptions.targetType) {
         targetType = auditOptions.targetType;
       }
@@ -69,7 +70,7 @@ export class AuditInterceptor implements NestInterceptor {
           // We can also log failed attempts if needed
           this.auditLogger.logAction({
             userId,
-            action: `${action}_FAILED`,
+            action: `${action}_FAILED`.substring(0, 50),
             targetType,
             targetId,
             ipAddress,

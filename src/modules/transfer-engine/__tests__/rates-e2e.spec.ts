@@ -1,8 +1,11 @@
+process.env.REDIS_HOST = 'localhost';
+jest.setTimeout(60000);
 const request = require('supertest');
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { AppModule } from '../../../app.module';
 import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
+import { PiiCrypt } from '../../auth-identity/infrastructure/security/pii-crypt';
 
 describe('RatesController (e2e)', () => {
   let app: INestApplication;
@@ -15,6 +18,7 @@ describe('RatesController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api/v1');
     await app.init();
     
     prisma = app.get<PrismaService>(PrismaService);
@@ -23,22 +27,29 @@ describe('RatesController (e2e)', () => {
     const testEmail = 'fx-e2e-test@factopay.com';
     const testPhone = '+12345678901';
     
-    let user = await prisma.user.findUnique({ where: { email: testEmail } });
-    if (user) {
-      await prisma.user.delete({ where: { email: testEmail } });
+    // Clean up any test users by email or phone index
+    await prisma.user.deleteMany({ where: { email: testEmail } });
+    const phoneIndex = PiiCrypt.generateBlindIndex(testPhone);
+    if (phoneIndex) {
+      await prisma.user.deleteMany({ where: { phoneNumberIndex: phoneIndex } });
     }
     
     // Register
-    await request(app.getHttpServer())
+    const regRes = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .send({ email: testEmail, password: 'Password123!', phoneNumber: testPhone, role: 'USER' });
+    console.log('Registration response:', JSON.stringify(regRes.body, null, 2));
+
+    const dbUser = await prisma.user.findUnique({ where: { id: regRes.body.userId } });
+    console.log('User in Database by ID:', JSON.stringify(dbUser, null, 2));
       
     // Login to get JWT
     const loginRes = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: testEmail, password: 'Password123!' });
+    console.log('Login response:', JSON.stringify(loginRes.body, null, 2));
       
-    jwtToken = loginRes.body.data.accessToken;
+    jwtToken = loginRes.body?.accessToken || loginRes.body?.data?.accessToken;
   });
 
   afterAll(async () => {
@@ -52,12 +63,13 @@ describe('RatesController (e2e)', () => {
 
   it('/rates/live (GET) should return 200 and rate data', async () => {
     const response = await request(app.getHttpServer())
-      .get('/rates/live?sourceCurrency=USD&targetCurrency=GHS')
-      .set('Authorization', `Bearer ${jwtToken}`)
-      .expect(200);
+      .get('/api/v1/rates/live?sourceCurrency=USD&targetCurrency=GHS')
+      .set('Authorization', `Bearer ${jwtToken}`);
 
-    console.log('\n--- LIVE RATE RESPONSE ---');
-    console.log(JSON.stringify(response.body, null, 2));
+    console.log('RATES LIVE RESPONSE STATUS:', response.status);
+    console.log('RATES LIVE RESPONSE BODY:', JSON.stringify(response.body, null, 2));
+
+    expect(response.status).toBe(200);
     console.log('--------------------------\n');
     
     expect(response.body.sourceCurrency).toBe('USD');

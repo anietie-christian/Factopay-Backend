@@ -15,6 +15,8 @@ import { STELLAR_GATEWAY_TOKEN } from '../../blockchain-settlement/domain/gatewa
 import { DestinationAllowlistService } from '../../blockchain-settlement/infrastructure/security/destination-allowlist.service';
 import { Keypair } from '@stellar/stellar-sdk';
 
+import { EventEmitterModule } from '@nestjs/event-emitter';
+
 describe('Wallet & Ledger Integration / E2E', () => {
   let moduleRef: TestingModule;
   let postLedgerTransactionUseCase: PostLedgerTransactionUseCase;
@@ -32,6 +34,7 @@ describe('Wallet & Ledger Integration / E2E', () => {
     moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true }),
+        EventEmitterModule.forRoot(),
         WalletLedgerModule,
         TransferEngineModule,
       ],
