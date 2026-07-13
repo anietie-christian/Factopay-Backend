@@ -61,6 +61,11 @@ describe('Wallet & Ledger Integration / E2E', () => {
       .useValue({
         isAllowed: () => true,
       })
+      .overrideProvider(require('../../shared/infrastructure/cache/redis.service').RedisService)
+      .useValue({
+        get: jest.fn(),
+        setWithExpiry: jest.fn(),
+      })
       .compile();
 
     // init() triggers onModuleInit lifecycle hooks, which connects PrismaService.directClient
@@ -162,12 +167,12 @@ describe('Wallet & Ledger Integration / E2E', () => {
     // Mock Redis for quote
     const redisService = moduleRef.get(require('../../shared/infrastructure/cache/redis.service').RedisService);
     const quoteId = uuid();
-    await redisService.setWithExpiry(`fx_quote:${quoteId}`, JSON.stringify({
+    redisService.get.mockResolvedValueOnce(JSON.stringify({
       sourceCurrency: 'EUR',
       targetCurrency: 'EUR',
       rate: 1.0,
       expiresAt: new Date(Date.now() + 100000).toISOString()
-    }), 100);
+    }));
 
     // Make user KYC approved
     await prisma.user.create({
@@ -194,5 +199,93 @@ describe('Wallet & Ledger Integration / E2E', () => {
 
     const finalRecipientBalance = await calculateBalanceUseCase.execute(recipientId, 'EUR');
     expect(finalRecipientBalance.toString()).toBe('150');
+  }, 60000);
+
+  it('should revert ledger entries if blockchain settlement fails', async () => {
+    // 1. Set up a transfer that succeeds up to the blockchain step
+    const initiateTransferUseCase = moduleRef.get(require('../../transfer-engine/application/use-cases/initiate-transfer.use-case').InitiateTransferUseCase);
+    const submitSettlementUseCase = moduleRef.get(require('../../blockchain-settlement/application/use-cases/submit-settlement.use-case').SubmitSettlementUseCase);
+    
+    // spy on submitSettlementUseCase and mock rejection
+    jest.spyOn(submitSettlementUseCase, 'execute').mockRejectedValueOnce(new Error('Blockchain node offline'));
+
+    const senderId = uuid();
+    const recipientId = uuid();
+    await provisionWalletUseCase.execute(senderId, 'EUR');
+    await provisionWalletUseCase.execute(recipientId, 'EUR');
+
+    const senderWallet = await prisma.wallet.findFirst({ where: { user_id: senderId, currency: 'EUR' }, include: { accounts: true } });
+    await prisma.ledgerEntry.createMany({
+      data: [
+        { transaction_id: uuid(), ledger_account_id: senderWallet.accounts[0].id, entry_type: 'CREDIT', amount: new Decimal(500), currency: 'EUR', description: 'Initial sender balance' }
+      ]
+    });
+
+    // We also need the user to have a Stellar wallet so it passes step 8
+    await prisma.stellarWallet.create({
+      data: {
+        userId: recipientId,
+        publicKey: `G-${uuid().substring(0, 10)}`,
+        encryptedSecret: 'S-SECRET',
+      }
+    });
+
+    // Make user KYC approved
+    await prisma.user.create({
+      data: {
+        id: senderId,
+        email: `${senderId}@test.com`,
+        kycStatus: 'APPROVED',
+        kycTier: 'TIER_1',
+      }
+    });
+
+    // Mock Redis for quote
+    const redisService = moduleRef.get(require('../../shared/infrastructure/cache/redis.service').RedisService);
+    const quoteId = uuid();
+    
+    redisService.get.mockResolvedValueOnce(JSON.stringify({
+      sourceCurrency: 'EUR',
+      targetCurrency: 'EUR',
+      rate: 1.0,
+      expiresAt: new Date(Date.now() + 100000).toISOString()
+    }));
+
+    // Initial balance is 500
+    const initialBalance = await calculateBalanceUseCase.execute(senderId, 'EUR');
+    console.log('--- TEST: Initial Sender Balance:', initialBalance.toString());
+    expect(initialBalance.toString()).toBe('500');
+
+    // Initiate Transfer
+    let errorThrown = false;
+    try {
+      await initiateTransferUseCase.execute(senderId, {
+        amount: '150',
+        currency: 'EUR',
+        recipientId: recipientId,
+        quoteId: quoteId,
+      }, uuid());
+    } catch (e) {
+      errorThrown = true;
+      console.log('--- TEST: Expected Blockchain Failure Caught:', e.message);
+      expect(e.message).toBe('Blockchain node offline');
+    }
+
+    expect(errorThrown).toBe(true);
+
+    // Reversal should have posted. Final balance should be 500.
+    const finalSenderBalance = await calculateBalanceUseCase.execute(senderId, 'EUR');
+    console.log('--- TEST: Final Sender Balance After Reversal:', finalSenderBalance.toString());
+    expect(finalSenderBalance.toString()).toBe('500');
+
+    // Recipient balance should be 0
+    const finalRecipientBalance = await calculateBalanceUseCase.execute(recipientId, 'EUR');
+    console.log('--- TEST: Final Recipient Balance After Reversal:', finalRecipientBalance.toString());
+    expect(finalRecipientBalance.toString()).toBe('0');
+    
+    // Optional: Assert transfer status is FAILED
+    const transfer = await prisma.transfer.findFirst({ where: { userId: senderId } });
+    console.log('--- TEST: Final Transfer Status:', transfer.status);
+    expect(transfer.status).toBe('FAILED');
   }, 60000);
 });

@@ -13,6 +13,16 @@ export class PrismaLedgerRepository implements LedgerRepository {
   async insertMany(entries: ProposedEntry[], transactionId: string, tx: PrismaTransaction): Promise<void> {
     const db = tx || this.prisma;
     
+    // Idempotency check: if entries for this transaction already exist, no-op.
+    // Concurrency is safe because this runs AFTER the wallet-level FOR UPDATE locks in the use case.
+    const existing = await db.ledgerEntry.findFirst({
+      where: { transaction_id: transactionId }
+    });
+    
+    if (existing) {
+      return;
+    }
+
     await db.ledgerEntry.createMany({
       data: entries.map(e => ({
         transaction_id: transactionId,

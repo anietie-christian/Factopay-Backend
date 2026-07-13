@@ -51,7 +51,9 @@ export class SettlementLimitsService {
 
     const dailyTransactions = await this.prisma.blockchainTransaction.findMany({
       where: {
-        status: 'SUCCESS',
+        status: {
+          in: ['SUCCESS', 'PENDING', 'PENDING_VERIFICATION'],
+        },
         ...(masterPublicKey ? { sourceAddress: masterPublicKey } : {}),
         createdAt: {
           gte: startOfUtcDay,

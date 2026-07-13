@@ -10,7 +10,25 @@ async function bootstrap() {
   const url = await app.getUrl();
 
   const jwtService = app.get(JwtService);
-  const payload = { sub: 'dummy-user-id', email: 'test@example.com', role: 'USER' };
+  const prisma = app.get(require('./src/modules/shared/infrastructure/database/prisma.service').PrismaService);
+  
+  const payload = { sub: 'dummy-user-id-fx', email: 'test-fx@example.com', role: 'USER' };
+  
+  // Create user
+  await prisma.user.upsert({
+    where: { id: payload.sub },
+    update: {},
+    create: {
+      id: payload.sub,
+      email: payload.email,
+      password_hash: 'dummy',
+      first_name: 'FX',
+      last_name: 'Test',
+      role: 'USER',
+      status: 'ACTIVE'
+    }
+  });
+
   const token = jwtService.sign(payload);
 
   console.log('\n--- 1. REQUEST WITHOUT TOKEN ---');

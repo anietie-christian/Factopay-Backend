@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ProvisionWalletUseCase } from './application/use-cases/provision-wallet.use-case';
 import { CalculateBalanceUseCase } from './application/use-cases/calculate-balance.use-case';
 import { PostLedgerTransactionUseCase } from './application/use-cases/post-ledger-transaction.use-case';
+import { ReverseLedgerTransactionUseCase } from './application/use-cases/reverse-ledger-transaction.use-case';
 import { PrismaWalletRepository } from './infrastructure/repositories/prisma-wallet.repository';
 import { PrismaLedgerRepository } from './infrastructure/repositories/prisma-ledger.repository';
 import { DoubleEntryEngine } from './domain/services/double-entry.engine';
@@ -21,10 +22,12 @@ import { SharedModule } from '../shared/shared.module';
     ProvisionWalletUseCase,
     CalculateBalanceUseCase,
     PostLedgerTransactionUseCase,
+    ReverseLedgerTransactionUseCase,
     KycApprovedListener,
   ],
   exports: [
     PostLedgerTransactionUseCase,
+    ReverseLedgerTransactionUseCase,
     CalculateBalanceUseCase,
     ProvisionWalletUseCase,
   ],

@@ -5,8 +5,8 @@ import { RedisService } from '../../shared/infrastructure/cache/redis.service';
 import { PostLedgerTransactionUseCase } from '../../wallet-ledger/application/use-cases/post-ledger-transaction.use-case';
 import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../shared/domain/exceptions/factopay.exception';
 import { InsufficientBalanceException } from '../../wallet-ledger/domain/exceptions/insufficient-balance.exception';
-import { Decimal } from 'decimal.js';
 import { SubmitSettlementUseCase } from '../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
+import { Decimal } from 'decimal.js';
 
 describe('InitiateTransferUseCase', () => {
   let useCase: InitiateTransferUseCase;
@@ -24,7 +24,7 @@ describe('InitiateTransferUseCase', () => {
           useValue: {
             user: { findUnique: jest.fn() },
             transfer: { create: jest.fn(), aggregate: jest.fn(), update: jest.fn() },
-            wallet: { findUnique: jest.fn() },
+            wallet: { findUnique: jest.fn(), findFirst: jest.fn() },
             systemWallet: { findFirst: jest.fn() },
             stellarWallet: { findUnique: jest.fn() },
           },
@@ -104,28 +104,56 @@ describe('InitiateTransferUseCase', () => {
     await expect(useCase.execute('user-id', validDto, 'idempotency-key')).rejects.toThrow('Sender wallet for EUR not found');
   });
 
-  it('should process the transfer and post to ledger successfully', async () => {
+  it('should process a cross-currency transfer and post 4-way FX entries to ledger successfully', async () => {
     redisService.get.mockResolvedValueOnce(JSON.stringify(validQuote));
     (prismaService.transfer.create as jest.Mock).mockResolvedValueOnce({ id: 'transfer-123' });
     (prismaService.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'user-id', kycStatus: 'APPROVED', kycTier: 'TIER_3' });
     
     (prismaService.wallet.findUnique as jest.Mock)
       .mockResolvedValueOnce({ accounts: [{ id: 'sender-acct-1' }] }) // Sender wallet
-      .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] }); // System wallet
+      .mockResolvedValueOnce({ accounts: [{ id: 'recipient-acct-1' }] }); // Recipient wallet
+      
+    (prismaService.wallet.findFirst as jest.Mock)
+      .mockResolvedValueOnce({ accounts: [{ id: 'fx-source-acct-1' }] }) // FX Source (EUR)
+      .mockResolvedValueOnce({ accounts: [{ id: 'fx-target-acct-1' }] }); // FX Target (USD)
+
+    (prismaService.stellarWallet.findUnique as jest.Mock).mockResolvedValueOnce({ publicKey: 'G-RECIPIENT' });
       
     postLedgerTransactionUseCase.execute.mockResolvedValueOnce(undefined);
     (prismaService.stellarWallet.findUnique as jest.Mock).mockResolvedValueOnce({ publicKey: 'GDESTINATION123' });
     submitSettlementUseCase.execute.mockResolvedValueOnce({ status: 'SUCCESS' } as any);
     
+    // We also need to mock submitSettlementUseCase since it proceeds after ledger
+    submitSettlementUseCase.execute.mockResolvedValueOnce({ status: 'SUCCESS' } as any);
+
     await useCase.execute('user-id', validDto, 'idempotency-key');
     
     expect(postLedgerTransactionUseCase.execute).toHaveBeenCalled();
     const entries = postLedgerTransactionUseCase.execute.mock.calls[0][1];
-    expect(entries).toHaveLength(2);
-    expect(entries[0].amount.toString()).toBe('100'); // Source amount
+    
+    expect(entries).toHaveLength(4);
+    
+    // Leg 1: Source Currency (EUR)
+    expect(entries[0].amount.toString()).toBe('100'); 
     expect(entries[0].currency).toBe('EUR');
-    expect(entries[1].amount.toString()).toBe('110'); // Converted amount (100 * 1.1)
-    expect(entries[1].currency).toBe('USD');
+    expect(entries[0].entryType).toBe('DEBIT');
+    expect(entries[0].ledgerAccountId).toBe('sender-acct-1');
+
+    expect(entries[1].amount.toString()).toBe('100'); 
+    expect(entries[1].currency).toBe('EUR');
+    expect(entries[1].entryType).toBe('CREDIT');
+    expect(entries[1].ledgerAccountId).toBe('fx-source-acct-1');
+
+    // Leg 2: Target Currency (USD)
+    expect(entries[2].amount.toString()).toBe('110'); // Converted amount (100 * 1.1)
+    expect(entries[2].currency).toBe('USD');
+    expect(entries[2].entryType).toBe('DEBIT');
+    expect(entries[2].ledgerAccountId).toBe('fx-target-acct-1');
+
+    expect(entries[3].amount.toString()).toBe('110'); 
+    expect(entries[3].currency).toBe('USD');
+    expect(entries[3].entryType).toBe('CREDIT');
+    expect(entries[3].ledgerAccountId).toBe('recipient-acct-1');
     
     expect(prismaService.transfer.update).toHaveBeenCalledWith({
       where: { id: 'transfer-123' },
