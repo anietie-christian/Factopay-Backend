@@ -199,6 +199,7 @@ model OtpCode {
   @@map("otp_codes")
 }
 
+
 model SocialAccount {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String   @map("user_id") @db.Uuid

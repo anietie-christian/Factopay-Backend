@@ -10,12 +10,17 @@ import { WalletLedgerModule } from '../wallet-ledger.module';
 import { TransferEngineModule } from '../../transfer-engine/transfer-engine.module';
 import { InsufficientBalanceException } from '../domain/exceptions/insufficient-balance.exception';
 import { ConfigModule } from '@nestjs/config';
+import { CreateStellarAccountUseCase } from '../../blockchain-settlement/application/use-cases/create-stellar-account.use-case';
+import { STELLAR_GATEWAY_TOKEN } from '../../blockchain-settlement/domain/gateways/stellar-gateway.interface';
+import { DestinationAllowlistService } from '../../blockchain-settlement/infrastructure/security/destination-allowlist.service';
+import { Keypair } from '@stellar/stellar-sdk';
 
 describe('Wallet & Ledger Integration / E2E', () => {
   let moduleRef: TestingModule;
   let postLedgerTransactionUseCase: PostLedgerTransactionUseCase;
   let provisionWalletUseCase: ProvisionWalletUseCase;
   let calculateBalanceUseCase: CalculateBalanceUseCase;
+  let createStellarAccountUseCase: CreateStellarAccountUseCase;
   let prisma: PrismaService;
 
   // Neon serverless adds ~2-3s cold-start latency per transaction.
@@ -31,7 +36,32 @@ describe('Wallet & Ledger Integration / E2E', () => {
         TransferEngineModule,
       ],
       providers: [PrismaService],
-    }).compile();
+    })
+      .overrideProvider(STELLAR_GATEWAY_TOKEN)
+      .useValue({
+        createKeyPair: () => {
+          const kp = Keypair.random();
+          return {
+            publicKey: kp.publicKey(),
+            secretKey: kp.secret(),
+          };
+        },
+        fundWithFriendbot: async () => true,
+        establishUsdcTrustline: async () => 'hash123',
+        sendUsdc: async () => ({
+          txHash: require('crypto').randomBytes(32).toString('hex'),
+          ledger: 102,
+        }),
+        getPublicKeyForRole: () => 'GMASTERPUBLICKEY1234567890123456789012345678901234567',
+        getAccountInfo: async () => ({
+          balances: [],
+        }),
+      })
+      .overrideProvider(DestinationAllowlistService)
+      .useValue({
+        isAllowed: () => true,
+      })
+      .compile();
 
     // init() triggers onModuleInit lifecycle hooks, which connects PrismaService.directClient
     await moduleRef.init();
@@ -39,6 +69,7 @@ describe('Wallet & Ledger Integration / E2E', () => {
     postLedgerTransactionUseCase = moduleRef.get(PostLedgerTransactionUseCase);
     provisionWalletUseCase = moduleRef.get(ProvisionWalletUseCase);
     calculateBalanceUseCase = moduleRef.get(CalculateBalanceUseCase);
+    createStellarAccountUseCase = moduleRef.get(CreateStellarAccountUseCase);
     prisma = moduleRef.get(PrismaService);
   });
 
@@ -117,6 +148,9 @@ describe('Wallet & Ledger Integration / E2E', () => {
     const recipientId = uuid();
     await provisionWalletUseCase.execute(senderId, 'EUR');
     await provisionWalletUseCase.execute(recipientId, 'EUR');
+
+    // Provision Stellar wallet for recipient so payout check passes
+    await createStellarAccountUseCase.execute(recipientId);
 
     const senderWallet = await prisma.wallet.findFirst({ where: { user_id: senderId, currency: 'EUR' }, include: { accounts: true } });
     await prisma.ledgerEntry.createMany({

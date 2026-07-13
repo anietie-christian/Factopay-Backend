@@ -5,6 +5,8 @@ import { KYC_REPOSITORY_TOKEN } from '../../domain/repositories/kyc.repository.i
 import * as crypto from 'crypto';
 import { SumsubWebhookDto } from '../dtos/sumsub-webhook.dto';
 import { KycAttemptStatus } from '../../domain/models/kyc-attempt.model';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { KycStatusChangedEvent } from '../../domain/events/kyc-status-changed.event';
 
 @Injectable()
 export class HandleKycWebhookUseCase {
@@ -12,6 +14,7 @@ export class HandleKycWebhookUseCase {
     @Inject(KYC_REPOSITORY_TOKEN)
     private readonly kycRepository: IKycRepository,
     private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) { }
 
   async execute(rawBody: string, signatureHeader: string, payload: SumsubWebhookDto): Promise<{ success: boolean }> {
@@ -45,6 +48,11 @@ export class HandleKycWebhookUseCase {
       throw new BadRequestException(`Verification attempt with external ID ${payload.applicantId} not found.`);
     }
 
+    const user = await this.kycRepository.findUserById(attempt.userId);
+    if (!user) {
+      throw new BadRequestException(`User ${attempt.userId} not found.`);
+    }
+
     const isApproved = payload.reviewResult?.reviewAnswer === 'GREEN';
     const status = isApproved ? KycAttemptStatus.APPROVED : KycAttemptStatus.REJECTED;
     const reason = payload.reviewResult?.moderationComment || payload.reviewResult?.rejectLabels?.join(', ') || null;
@@ -56,8 +64,30 @@ export class HandleKycWebhookUseCase {
     if (isApproved) {
       // As per the plan, successful Sumsub check moves user to TIER_2
       await this.kycRepository.updateUserKyc(attempt.userId, 'APPROVED', 'TIER_2');
+
+      this.eventEmitter.emit(
+        KycStatusChangedEvent.eventName,
+        new KycStatusChangedEvent(
+          attempt.userId,
+          user.kycStatus,
+          'APPROVED',
+          user.kycTier,
+          'TIER_2',
+        ),
+      );
     } else {
       await this.kycRepository.updateUserKyc(attempt.userId, 'REJECTED', 'NONE');
+
+      this.eventEmitter.emit(
+        KycStatusChangedEvent.eventName,
+        new KycStatusChangedEvent(
+          attempt.userId,
+          user.kycStatus,
+          'REJECTED',
+          user.kycTier,
+          'NONE',
+        ),
+      );
     }
 
     return { success: true };

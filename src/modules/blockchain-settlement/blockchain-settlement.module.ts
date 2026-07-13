@@ -23,6 +23,7 @@ import { PrismaBlockchainRepository } from './infrastructure/persistence/prisma-
 import { DestinationAllowlistService } from './infrastructure/security/destination-allowlist.service';
 import { SettlementLimitsService } from './infrastructure/security/settlement-limits.service';
 import { WalletLockManager } from './infrastructure/security/wallet-lock.manager';
+import { KycApprovedListener } from './infrastructure/listeners/kyc-approved.listener';
 
 @Module({
   imports: [SharedModule],
@@ -41,6 +42,9 @@ import { WalletLockManager } from './infrastructure/security/wallet-lock.manager
     DestinationAllowlistService,
     SettlementLimitsService,
     WalletLockManager,
+
+    // Listeners
+    KycApprovedListener,
 
     // Domain Services
     {

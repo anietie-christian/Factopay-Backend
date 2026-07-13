@@ -177,7 +177,7 @@ export class InitiateTransferUseCase {
         destinationPublicKey: recipientWallet.publicKey,
         amount: dto.amount,
         memo: `FW-${transfer.id.slice(0, 8)}`,
-        adminId: 'SYSTEM',
+        adminId: '00000000-0000-0000-0000-000000000000',
         ipAddress: '127.0.0.1',
       });
 

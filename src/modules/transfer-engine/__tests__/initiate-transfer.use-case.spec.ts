@@ -6,12 +6,14 @@ import { PostLedgerTransactionUseCase } from '../../wallet-ledger/application/us
 import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededException, UserNotFoundException } from '../../shared/domain/exceptions/factopay.exception';
 import { InsufficientBalanceException } from '../../wallet-ledger/domain/exceptions/insufficient-balance.exception';
 import { Decimal } from 'decimal.js';
+import { SubmitSettlementUseCase } from '../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
 
 describe('InitiateTransferUseCase', () => {
   let useCase: InitiateTransferUseCase;
   let prismaService: jest.Mocked<PrismaService>;
   let redisService: jest.Mocked<RedisService>;
   let postLedgerTransactionUseCase: jest.Mocked<PostLedgerTransactionUseCase>;
+  let submitSettlementUseCase: jest.Mocked<SubmitSettlementUseCase>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -24,6 +26,7 @@ describe('InitiateTransferUseCase', () => {
             transfer: { create: jest.fn(), aggregate: jest.fn(), update: jest.fn() },
             wallet: { findUnique: jest.fn() },
             systemWallet: { findFirst: jest.fn() },
+            stellarWallet: { findUnique: jest.fn() },
           },
         },
         {
@@ -34,6 +37,10 @@ describe('InitiateTransferUseCase', () => {
           provide: PostLedgerTransactionUseCase,
           useValue: { execute: jest.fn() },
         },
+        {
+          provide: SubmitSettlementUseCase,
+          useValue: { execute: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -41,6 +48,7 @@ describe('InitiateTransferUseCase', () => {
     prismaService = module.get(PrismaService) as any;
     redisService = module.get(RedisService) as any;
     postLedgerTransactionUseCase = module.get(PostLedgerTransactionUseCase) as any;
+    submitSettlementUseCase = module.get(SubmitSettlementUseCase) as any;
   });
 
   const validDto = {
@@ -106,6 +114,8 @@ describe('InitiateTransferUseCase', () => {
       .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] }); // System wallet
       
     postLedgerTransactionUseCase.execute.mockResolvedValueOnce(undefined);
+    (prismaService.stellarWallet.findUnique as jest.Mock).mockResolvedValueOnce({ publicKey: 'GDESTINATION123' });
+    submitSettlementUseCase.execute.mockResolvedValueOnce({ status: 'SUCCESS' } as any);
     
     await useCase.execute('user-id', validDto, 'idempotency-key');
     
@@ -165,8 +175,10 @@ describe('InitiateTransferUseCase', () => {
       .mockResolvedValueOnce({ accounts: [{ id: 'system-acct-1' }] });
       
     postLedgerTransactionUseCase.execute.mockResolvedValueOnce(undefined);
+    (prismaService.stellarWallet.findUnique as jest.Mock).mockResolvedValueOnce({ publicKey: 'GDESTINATION123' });
+    submitSettlementUseCase.execute.mockResolvedValueOnce({ status: 'SUCCESS' } as any);
     
-    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).resolves.toEqual({ success: true, transferId: 'transfer-123' });
+    await expect(useCase.execute('user-id', validDto, 'idempotency-key')).resolves.toEqual({ success: true, transferId: 'transfer-123', status: 'COMPLETED' });
   });
 
   it('should mark transfer as FAILED if UnbalancedEntriesException is thrown by Ledger', async () => {

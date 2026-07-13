@@ -66,7 +66,7 @@ export class BlockchainController {
     @Request() req: any,
     @Ip() ipAddress: string,
   ) {
-    const adminId = req.user?.id || 'SYSTEM';
+    const adminId = req.user?.id || '00000000-0000-0000-0000-000000000000';
     return this.submitSettlementUseCase.execute({
       transferId: dto.transferId,
       destinationPublicKey: dto.destinationPublicKey,

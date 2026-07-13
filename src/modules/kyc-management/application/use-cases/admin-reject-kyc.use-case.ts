@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { AdminAuditService } from '../../../shared/infrastructure/services/admin-audit.service';
 import { AdminRejectKycDto } from '../dtos/admin-reject-kyc.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { KycStatusChangedEvent } from '../../domain/events/kyc-status-changed.event';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -9,6 +11,7 @@ export class AdminRejectKycUseCase {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adminAuditService: AdminAuditService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async execute(userId: string, dto: AdminRejectKycDto, adminId: string, adminEmail: string, ipAddress: string) {
@@ -51,6 +54,18 @@ export class AdminRejectKycUseCase {
       userId,
       { previousStatus: user.kycStatus, newStatus: 'REJECTED', reason: dto.reason, rejectedBy: adminEmail },
       ipAddress,
+    );
+
+    // 6. Emit KYC status changed event
+    this.eventEmitter.emit(
+      KycStatusChangedEvent.eventName,
+      new KycStatusChangedEvent(
+        userId,
+        user.kycStatus,
+        'REJECTED',
+        user.kycTier,
+        'NONE',
+      ),
     );
 
     return {
