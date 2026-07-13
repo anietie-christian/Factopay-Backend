@@ -13,6 +13,7 @@ import { KycAttemptStatus, KycVerificationAttempt } from '../domain/models/kyc-a
 import { ConfigService } from '@nestjs/config';
 import { SumsubWebhookDto } from '../application/dtos/sumsub-webhook.dto';
 import * as crypto from 'crypto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('KYC Management Use Cases', () => {
     let submitBasicProfileUseCase: SubmitBasicProfileUseCase;
@@ -69,6 +70,12 @@ describe('KYC Management Use Cases', () => {
                     provide: ConfigService,
                     useValue: {
                         get: jest.fn(),
+                    },
+                },
+                {
+                    provide: EventEmitter2,
+                    useValue: {
+                        emit: jest.fn(),
                     },
                 },
             ],
@@ -164,6 +171,7 @@ describe('KYC Management Use Cases', () => {
             jest.resetAllMocks();
             mockConfigService.get.mockReturnValue(webhookSecret);
             mockKycRepository.findAttemptByExternalId.mockResolvedValue(mockAttempt);
+            mockKycRepository.findUserById.mockResolvedValue(mockUser);
         });
 
         const createSignature = (payload: object) => {

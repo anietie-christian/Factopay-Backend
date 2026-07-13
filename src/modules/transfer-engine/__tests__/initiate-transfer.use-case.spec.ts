@@ -7,6 +7,7 @@ import { FxQuoteExpiredException, KycNotApprovedException, KycLimitExceededExcep
 import { InsufficientBalanceException } from '../../wallet-ledger/domain/exceptions/insufficient-balance.exception';
 import { SubmitSettlementUseCase } from '../../blockchain-settlement/application/use-cases/submit-settlement.use-case';
 import { Decimal } from 'decimal.js';
+import { ReverseLedgerTransactionUseCase } from '../../wallet-ledger/application/use-cases/reverse-ledger-transaction.use-case';
 
 describe('InitiateTransferUseCase', () => {
   let useCase: InitiateTransferUseCase;
@@ -14,6 +15,7 @@ describe('InitiateTransferUseCase', () => {
   let redisService: jest.Mocked<RedisService>;
   let postLedgerTransactionUseCase: jest.Mocked<PostLedgerTransactionUseCase>;
   let submitSettlementUseCase: jest.Mocked<SubmitSettlementUseCase>;
+  let reverseLedgerTransactionUseCase: jest.Mocked<ReverseLedgerTransactionUseCase>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -41,6 +43,10 @@ describe('InitiateTransferUseCase', () => {
           provide: SubmitSettlementUseCase,
           useValue: { execute: jest.fn() },
         },
+        {
+          provide: ReverseLedgerTransactionUseCase,
+          useValue: { execute: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -49,6 +55,8 @@ describe('InitiateTransferUseCase', () => {
     redisService = module.get(RedisService) as any;
     postLedgerTransactionUseCase = module.get(PostLedgerTransactionUseCase) as any;
     submitSettlementUseCase = module.get(SubmitSettlementUseCase) as any;
+    reverseLedgerTransactionUseCase = module.get(ReverseLedgerTransactionUseCase) as any;
+    (prismaService.wallet.findFirst as jest.Mock).mockResolvedValue({ accounts: [{ id: 'fx-liquidity-acct-default' }] });
   });
 
   const validDto = {

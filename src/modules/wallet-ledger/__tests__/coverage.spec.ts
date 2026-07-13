@@ -51,8 +51,10 @@ describe('Coverage Specs', () => {
     beforeEach(() => {
       mockPrisma = {
         $transaction: jest.fn(async (cb) => cb(mockPrisma)),
+        $transactionDirect: jest.fn(async (cb) => cb(mockPrisma)),
+        $executeRawUnsafe: jest.fn().mockResolvedValue(0),
         ledgerAccount: {
-          findMany: jest.fn().mockResolvedValue([{ wallet_id: uuid() }])
+          findMany: jest.fn().mockResolvedValue([{ wallet_id: uuid(), wallet: { wallet_type: 'USER' } }])
         }
       };
       mockWalletRepo = { lockForUpdate: jest.fn() };
@@ -155,6 +157,7 @@ describe('Coverage Specs', () => {
         ledgerEntry: {
           createMany: jest.fn(),
           findMany: jest.fn().mockResolvedValue([]),
+          findFirst: jest.fn().mockResolvedValue(null),
         },
         $queryRaw: jest.fn().mockResolvedValue([{ debits: 0, credits: 0 }]),
       };
@@ -171,6 +174,14 @@ describe('Coverage Specs', () => {
         { ledgerAccountId: uuid(), entryType: EntryType.CREDIT, amount: new Decimal(10), currency: 'EUR', description: '' }
       ] as any, 'tx-1', mockPrisma);
       expect(mockPrisma.ledgerEntry.createMany).toHaveBeenCalled();
+    });
+
+    it('should skip creation if transaction entries already exist (idempotent)', async () => {
+      mockPrisma.ledgerEntry.findFirst.mockResolvedValueOnce({ id: 'existing-1' });
+      await repo.insertMany([
+        { ledgerAccountId: uuid(), entryType: EntryType.CREDIT, amount: new Decimal(10), currency: 'EUR', description: '' }
+      ] as any, 'tx-1', mockPrisma);
+      expect(mockPrisma.ledgerEntry.createMany).not.toHaveBeenCalled();
     });
 
     it('should paginate entries', async () => {

@@ -47,18 +47,30 @@ export class DoubleEntryEngine {
       }
     }
 
-    // Balance check per currency
-    const byCurrency = groupBy(entries, e => e.currency);
-    for (const [currency, currEntries] of Object.entries(byCurrency)) {
-      const debits = currEntries
+    // Balance check per currency/overall
+    const currencies = new Set(entries.map(e => e.currency));
+    if (currencies.size === 1) {
+      const currency = Array.from(currencies)[0];
+      const debits = entries
         .filter(e => e.entryType === EntryType.DEBIT)
         .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
-      const credits = currEntries
+      const credits = entries
         .filter(e => e.entryType === EntryType.CREDIT)
         .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
 
       if (!debits.equals(credits)) {
         throw new UnbalancedEntriesException(`${debits.toFixed(4)} ${currency}`, `${credits.toFixed(4)} ${currency}`);
+      }
+    } else {
+      const debits = entries
+        .filter(e => e.entryType === EntryType.DEBIT)
+        .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
+      const credits = entries
+        .filter(e => e.entryType === EntryType.CREDIT)
+        .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
+
+      if (!debits.equals(credits)) {
+        throw new UnbalancedEntriesException(debits.toFixed(4), credits.toFixed(4));
       }
     }
   }

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
 import { AdminAuditService } from '../../shared/infrastructure/services/admin-audit.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AdminGetKycQueueUseCase } from '../application/use-cases/admin-get-kyc-queue.use-case';
 import { AdminGetKycDetailsUseCase } from '../application/use-cases/admin-get-kyc-details.use-case';
 import { AdminApproveKycUseCase } from '../application/use-cases/admin-approve-kyc.use-case';
@@ -63,6 +64,12 @@ describe('Admin KYC Use Cases', () => {
         {
           provide: AdminAuditService,
           useValue: mockAdminAuditService,
+        },
+        {
+          provide: EventEmitter2,
+          useValue: {
+            emit: jest.fn(),
+          },
         },
       ],
     }).compile();
