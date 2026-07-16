@@ -18,6 +18,11 @@ This file tracks the ownership, development status, and recent changes of each b
 ---
 
 ## Recent Changes
+- **production readiness (Security/Config):** Christian removed hardcoded secret fallbacks, added required env validation, created `.env.example`, re-enabled Helmet CSP, added body limits, and disabled Swagger by default in production.
+- **auth-identity (Refresh Sessions):** Christian introduced database-backed refresh-token sessions with `jti`, hashed refresh-token storage, single-use rotation, reuse detection, and focused test coverage.
+- **gateway-integrations (Webhook Integrity):** Christian updated Flutterwave, Transak, and Sumsub verification to use preserved raw request bytes and timing-safe comparisons.
+- **b2b-gateway (Idempotency):** Christian removed generated fallback idempotency keys; B2B callers must now send `Idempotency-Key`. B2B exposure is feature-flagged off by default.
+- **documentation (Scenario Audit):** Christian added `docs/REAL_LIFE_SCENARIO_AUDIT.md` and `docs/SLACK_TEAM_SUMMARY.md` for team review and production planning.
 - **blockchain-settlement (Edge Cases & Concurrency):** Oscar implemented a 20% network fee buffer for Stellar gas spikes, a 3-attempt exponential backoff retry loop for resilient ledger submissions, a Redis-backed `WalletLockManager` to resolve concurrency/sequence number collisions, and fully documented the context in `docs/BLOCKCHAIN_SETTLEMENT.md`.
 - **shared (Type Fixes):** Oscar fixed compilation errors by exporting the `CurrencyCode` type alias from `currency.vo.ts`.
 - **infrastructure (Docker):** Oscar optimized `.dockerignore` using recursive exclusions (shrinking build context from 720MB to <5MB) and created a database seeder (`prisma/seed.ts`) with a cascade-truncation routine to populate test users and transaction histories.
