@@ -52,7 +52,7 @@ describe('KYC Management Use Cases', () => {
                 {
                     provide: RecordWebhookEventUseCase,
                     useValue: {
-                        execute: jest.fn().mockResolvedValue({ isDuplicate: false, event: { id: 'evt-1' } }),
+                        execute: jest.fn().mockResolvedValue({ isDuplicate: false, status: 'RECEIVED' }),
                         updateStatus: jest.fn().mockResolvedValue({}),
                     },
                 },
@@ -182,7 +182,7 @@ describe('KYC Management Use Cases', () => {
             mockConfigService.get.mockReturnValue(webhookSecret);
             mockKycRepository.findAttemptByExternalId.mockResolvedValue(mockAttempt);
             mockKycRepository.findUserById.mockResolvedValue(mockUser);
-            mockRecordWebhookEventUseCase.execute.mockResolvedValue({ isDuplicate: false, event: { id: 'evt-1' } as any });
+            mockRecordWebhookEventUseCase.execute.mockResolvedValue({ isDuplicate: false, status: 'RECEIVED' });
             mockRecordWebhookEventUseCase.updateStatus.mockResolvedValue({} as any);
         });
 

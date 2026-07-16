@@ -26,7 +26,7 @@ describe('Transak Webhook (e2e)', () => {
         {
           provide: RecordWebhookEventUseCase,
           useValue: {
-            execute: jest.fn().mockResolvedValue({ isDuplicate: false, event: { id: 'evt-1' } }),
+            execute: jest.fn().mockResolvedValue({ isDuplicate: false, status: 'RECEIVED' }),
             updateStatus: jest.fn().mockResolvedValue({}),
           },
         },
