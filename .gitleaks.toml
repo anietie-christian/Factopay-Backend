@@ -1,0 +1,11 @@
+# Gitleaks configuration file to allow mock test secrets in test files
+[allowlist]
+description = "Allow mock test credentials and configuration keys in test suites"
+paths = [
+    '''__tests__/''',
+    '''jest\.setup\.ts''',
+    '''test-fx-auth\.ts''',
+    '''test-idempotency\.ts''',
+    '''test-lockout-expiry\.ts''',
+    '''test-reversal-idempotency\.ts'''
+]

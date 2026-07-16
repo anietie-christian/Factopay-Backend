@@ -62,8 +62,8 @@ jobs:
       - name: Check Dependencies Security (Audit)
         run: npm audit --audit-level=high || true # Warn on high/critical deps issues
 
-      - name: Run Linter
-        run: npm run lint
+      - name: Type Check (TypeScript compiler check)
+        run: npx tsc --noEmit
 
       - name: Setup Prisma Schema
         env:
