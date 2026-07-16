@@ -34,6 +34,8 @@ export class LedgerImmutabilityEnforcer implements OnModuleInit {
       // 3. Bind update/delete block to ledger_entries
       await this.prisma.$executeRawUnsafe(`
         DROP TRIGGER IF EXISTS trg_prevent_ledger_entries_mutation ON ledger_entries;
+      `);
+      await this.prisma.$executeRawUnsafe(`
         CREATE TRIGGER trg_prevent_ledger_entries_mutation
         BEFORE UPDATE OR DELETE ON ledger_entries
         FOR EACH ROW EXECUTE FUNCTION prevent_ledger_mutation();
@@ -42,6 +44,8 @@ export class LedgerImmutabilityEnforcer implements OnModuleInit {
       // 4. Bind delete block to ledger_accounts
       await this.prisma.$executeRawUnsafe(`
         DROP TRIGGER IF EXISTS trg_prevent_ledger_accounts_delete ON ledger_accounts;
+      `);
+      await this.prisma.$executeRawUnsafe(`
         CREATE TRIGGER trg_prevent_ledger_accounts_delete
         BEFORE DELETE ON ledger_accounts
         FOR EACH ROW EXECUTE FUNCTION prevent_ledger_account_delete();
@@ -49,7 +53,8 @@ export class LedgerImmutabilityEnforcer implements OnModuleInit {
 
       this.logger.log('Ledger immutability triggers applied successfully.');
     } catch (error) {
-      this.logger.error('Failed to enforce ledger immutability triggers:', error);
+      this.logger.error('Failed to enforce ledger immutability triggers:');
+      this.logger.error(error);
       // We log but do not block app bootstrap, so tests against mock DBs or SQLite (which doesn't support pg triggers) still pass.
     }
   }

@@ -12,3 +12,15 @@ process.env.TWILIO_FROM_NUMBER ||= '+15550000000';
 process.env.SENDGRID_API_KEY ||= 'SG.test-key';
 process.env.SENDGRID_FROM_EMAIL ||= 'no-reply@test.factopay.com';
 process.env.STELLAR_WALLET_ENCRYPTION_KEY ||= 'test-stellar-wallet-encryption-key-32-characters';
+
+import * as cryptoModule from 'crypto';
+if (!global.crypto) {
+  Object.defineProperty(global, 'crypto', {
+    value: {
+      randomUUID: () => cryptoModule.randomUUID(),
+    },
+    writable: true,
+    configurable: true,
+  });
+}
+

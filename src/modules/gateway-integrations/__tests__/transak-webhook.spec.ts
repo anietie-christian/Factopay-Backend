@@ -9,6 +9,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TransakWebhookController } from '../infrastructure/controllers/transak-webhook.controller';
 import { TransakSignatureMiddleware } from '../infrastructure/middleware/transak-signature.middleware';
 
+import { RecordWebhookEventUseCase } from '../application/use-cases/record-webhook-event.use-case';
+
 describe('Transak Webhook (e2e)', () => {
   let app: INestApplication;
   const webhookSecret = 'transak_test_secret';
@@ -20,6 +22,15 @@ describe('Transak Webhook (e2e)', () => {
         EventEmitterModule.forRoot(),
       ],
       controllers: [TransakWebhookController],
+      providers: [
+        {
+          provide: RecordWebhookEventUseCase,
+          useValue: {
+            execute: jest.fn().mockResolvedValue({ isDuplicate: false, event: { id: 'evt-1' } }),
+            updateStatus: jest.fn().mockResolvedValue({}),
+          },
+        },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication({ bodyParser: false });

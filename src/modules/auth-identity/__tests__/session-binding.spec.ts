@@ -37,7 +37,7 @@ describe('Device Fingerprinting & IP-Subnet Session Binding', () => {
 
     beforeEach(() => {
       mockUserRepository = {
-        findById: jest.fn().mockResolvedValue({ id: 'user-123', isActive: true, role: 'USER', kycStatus: 'APPROVED' }),
+        findById: jest.fn().mockResolvedValue({ id: 'user-123', isActive: true, role: 'USER', kycStatus: 'APPROVED', status: 'ACTIVE' }),
       };
       strategy = new JwtStrategy(mockUserRepository);
     });
@@ -95,7 +95,7 @@ describe('Device Fingerprinting & IP-Subnet Session Binding', () => {
 
     beforeEach(() => {
       mockUserRepository = {
-        findById: jest.fn().mockResolvedValue({ id: 'user-123', isActive: true, role: 'USER', kycStatus: 'APPROVED' }),
+        findById: jest.fn().mockResolvedValue({ id: 'user-123', isActive: true, role: 'USER', kycStatus: 'APPROVED', status: 'ACTIVE' }),
       };
       mockJwtService = {
         verify: jest.fn(),

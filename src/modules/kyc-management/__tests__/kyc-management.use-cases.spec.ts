@@ -13,6 +13,7 @@ import { KycAttemptStatus, KycVerificationAttempt } from '../domain/models/kyc-a
 import { ConfigService } from '@nestjs/config';
 import { SumsubWebhookDto } from '../application/dtos/sumsub-webhook.dto';
 import * as crypto from 'crypto';
+import { RecordWebhookEventUseCase } from '../../gateway-integrations/application/use-cases/record-webhook-event.use-case';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('KYC Management Use Cases', () => {
@@ -23,6 +24,7 @@ describe('KYC Management Use Cases', () => {
     let mockKycRepository: jest.Mocked<IKycRepository>;
     let mockKycProvider: jest.Mocked<IKycProvider>;
     let mockConfigService: jest.Mocked<ConfigService>;
+    let mockRecordWebhookEventUseCase: jest.Mocked<RecordWebhookEventUseCase>;
 
     const mockUser = new User(
         'user-123',
@@ -47,6 +49,13 @@ describe('KYC Management Use Cases', () => {
                 InitiateKycCheckUseCase,
                 HandleKycWebhookUseCase,
                 GetKycStatusUseCase,
+                {
+                    provide: RecordWebhookEventUseCase,
+                    useValue: {
+                        execute: jest.fn().mockResolvedValue({ isDuplicate: false, event: { id: 'evt-1' } }),
+                        updateStatus: jest.fn().mockResolvedValue({}),
+                    },
+                },
                 {
                     provide: KYC_REPOSITORY_TOKEN,
                     useValue: {
@@ -88,6 +97,7 @@ describe('KYC Management Use Cases', () => {
         mockKycRepository = module.get(KYC_REPOSITORY_TOKEN);
         mockKycProvider = module.get(KYC_PROVIDER_TOKEN);
         mockConfigService = module.get(ConfigService);
+        mockRecordWebhookEventUseCase = module.get(RecordWebhookEventUseCase);
     });
 
     describe('SubmitBasicProfileUseCase', () => {
@@ -172,6 +182,8 @@ describe('KYC Management Use Cases', () => {
             mockConfigService.get.mockReturnValue(webhookSecret);
             mockKycRepository.findAttemptByExternalId.mockResolvedValue(mockAttempt);
             mockKycRepository.findUserById.mockResolvedValue(mockUser);
+            mockRecordWebhookEventUseCase.execute.mockResolvedValue({ isDuplicate: false, event: { id: 'evt-1' } as any });
+            mockRecordWebhookEventUseCase.updateStatus.mockResolvedValue({} as any);
         });
 
         const createSignature = (payload: object) => {
