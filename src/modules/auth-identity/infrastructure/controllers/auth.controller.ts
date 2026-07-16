@@ -63,8 +63,12 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
-    return this.loginUseCase.execute(loginDto, fingerprint);
+    const sessionContext = {
+      fingerprint: SessionBindingService.generateFingerprint(ip, userAgent),
+      ipAddress: ip,
+      userAgent,
+    };
+    return this.loginUseCase.execute(loginDto, sessionContext);
   }
 
   @Post('otp/generate')
@@ -98,8 +102,12 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
-    return this.refreshTokenUseCase.execute(refreshTokenDto, fingerprint);
+    const sessionContext = {
+      fingerprint: SessionBindingService.generateFingerprint(ip, userAgent),
+      ipAddress: ip,
+      userAgent,
+    };
+    return this.refreshTokenUseCase.execute(refreshTokenDto, sessionContext);
   }
 
   @Post('mfa/setup')
@@ -149,8 +157,12 @@ export class AuthController {
     if (!body.mfaToken) {
       throw new Error('MFA token is required for public verification');
     }
-    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
-    return this.verifyMfaUseCase.execute(body.mfaToken, body.code, fingerprint);
+    const sessionContext = {
+      fingerprint: SessionBindingService.generateFingerprint(ip, userAgent),
+      ipAddress: ip,
+      userAgent,
+    };
+    return this.verifyMfaUseCase.execute(body.mfaToken, body.code, sessionContext);
   }
 
   @Post('social/verify')
@@ -164,8 +176,12 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
-    return this.socialVerifyUseCase.execute(body.provider, body.token, fingerprint);
+    const sessionContext = {
+      fingerprint: SessionBindingService.generateFingerprint(ip, userAgent),
+      ipAddress: ip,
+      userAgent,
+    };
+    return this.socialVerifyUseCase.execute(body.provider, body.token, sessionContext);
   }
 
   @Post('social/complete-signup')
@@ -178,7 +194,11 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    const fingerprint = SessionBindingService.generateFingerprint(ip, userAgent);
-    return this.completeSocialSignupUseCase.execute(body.registrationToken, body.phoneNumber, fingerprint);
+    const sessionContext = {
+      fingerprint: SessionBindingService.generateFingerprint(ip, userAgent),
+      ipAddress: ip,
+      userAgent,
+    };
+    return this.completeSocialSignupUseCase.execute(body.registrationToken, body.phoneNumber, sessionContext);
   }
 }

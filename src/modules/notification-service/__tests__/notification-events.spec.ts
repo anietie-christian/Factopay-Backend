@@ -18,17 +18,59 @@ describe('Notification Service (Integration)', () => {
   });
 
   it('should fail-closed if API keys are missing', async () => {
-    const oldSid = process.env.TWILIO_ACCOUNT_SID;
-    const oldToken = process.env.TWILIO_AUTH_TOKEN;
-    const oldFrom = process.env.TWILIO_FROM_NUMBER;
-    const oldSgKey = process.env.SENDGRID_API_KEY;
-    const oldSgFrom = process.env.SENDGRID_FROM_EMAIL;
+    const configKeys = [
+      'TWILIO_ACCOUNT_SID',
+      'TWILIO_AUTH_TOKEN',
+      'TWILIO_FROM_NUMBER',
+      'SENDGRID_API_KEY',
+      'SENDGRID_FROM_EMAIL',
+    ];
+    const previousConfig = Object.fromEntries(
+      configKeys.map((key) => [key, process.env[key]]),
+    );
+    configKeys.forEach((key) => delete process.env[key]);
 
-    delete process.env.TWILIO_ACCOUNT_SID;
-    delete process.env.TWILIO_AUTH_TOKEN;
-    delete process.env.TWILIO_FROM_NUMBER;
-    delete process.env.SENDGRID_API_KEY;
-    delete process.env.SENDGRID_FROM_EMAIL;
+    try {
+      const builder = Test.createTestingModule({
+        imports: [
+          SharedModule,
+          ConfigModule.forRoot({
+            ignoreEnvFile: true,
+            ignoreEnvVars: true,
+            load: [() => ({})], // empty config
+          }),
+          NotificationModule,
+        ],
+      })
+        .overrideProvider(PrismaService)
+        .useValue({});
+
+      await expect(builder.compile()).rejects.toThrow(
+        /Twilio configuration is missing|SendGrid configuration is missing/,
+      );
+    } finally {
+      for (const [key, value] of Object.entries(previousConfig)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+  });
+
+  it('should fire the adapter successfully when transfer.completed is emitted', async () => {
+    const config = {
+      TWILIO_ACCOUNT_SID: 'AC00000000000000000000000000000000',
+      TWILIO_AUTH_TOKEN: 'dummy_token',
+      TWILIO_FROM_NUMBER: '+1234567890',
+      SENDGRID_API_KEY: 'SG.dummy_key',
+      SENDGRID_FROM_EMAIL: 'test@factopay.com',
+    };
+    const previousConfig = Object.fromEntries(
+      Object.keys(config).map((key) => [key, process.env[key]]),
+    );
+    Object.assign(process.env, config);
 
     try {
       module = await Test.createTestingModule({
@@ -36,95 +78,66 @@ describe('Notification Service (Integration)', () => {
           SharedModule,
           ConfigModule.forRoot({
             ignoreEnvFile: true,
-            load: [() => ({})], // empty config
+            load: [() => config],
           }),
+          EventEmitterModule.forRoot(),
           NotificationModule,
         ],
       })
         .overrideProvider(PrismaService)
-        .useValue({})
+        .useValue({
+          user: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'user-123',
+              email: 'user@example.com',
+              phoneNumber: '+0987654321',
+              profile: {
+                firstName: 'Alice',
+              }
+            }),
+          },
+        })
         .compile();
 
-      module.get(SMS_GATEWAY_TOKEN);
-      
-      throw new Error('Expected module to throw initialization error due to missing API keys');
-    } catch (error) {
-      expect(error.message).toMatch(/Twilio configuration is missing|SendGrid configuration is missing/);
-      console.log('--- TEST: Successfully failed-closed on missing keys:', error.message);
+      await module.init();
+
+      const smsGateway = module.get(SMS_GATEWAY_TOKEN);
+      const emailGateway = module.get(EMAIL_GATEWAY_TOKEN);
+      eventEmitter = module.get(EventEmitter2);
+
+      // Spy on the actual adapter methods to ensure they are called
+      const smsSpy = jest.spyOn(smsGateway, 'sendSms').mockImplementation(async () => true);
+      const emailSpy = jest.spyOn(emailGateway, 'sendEmail').mockImplementation(async () => true);
+
+      console.log('--- TEST: Emitting transfer.completed...');
+      await eventEmitter.emitAsync('transfer.completed', {
+        transferId: 'tx-123',
+        userId: 'user-123',
+        amount: '100',
+        currency: 'EUR',
+        recipientId: 'rec-456',
+      });
+
+      expect(smsSpy).toHaveBeenCalledWith(
+        '+0987654321',
+        'Hi Alice, your transfer of 100 EUR to rec-456 has successfully completed. Transfer ID: tx-123',
+      );
+      expect(emailSpy).toHaveBeenCalledWith(
+        'user@example.com',
+        'Your FactoPay Transfer has successfully completed',
+        'Hi Alice, your transfer of 100 EUR to rec-456 has successfully completed. Transfer ID: tx-123',
+      );
+
+      console.log('--- TEST: Twilio Adapter was called successfully');
+      console.log('--- TEST: SendGrid Adapter was called successfully');
     } finally {
-      process.env.TWILIO_ACCOUNT_SID = oldSid;
-      process.env.TWILIO_AUTH_TOKEN = oldToken;
-      process.env.TWILIO_FROM_NUMBER = oldFrom;
-      process.env.SENDGRID_API_KEY = oldSgKey;
-      process.env.SENDGRID_FROM_EMAIL = oldSgFrom;
+      for (const [key, value] of Object.entries(previousConfig)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
     }
-  });
-
-  it('should fire the adapter successfully when transfer.completed is emitted', async () => {
-    module = await Test.createTestingModule({
-      imports: [
-        SharedModule,
-        ConfigModule.forRoot({
-          ignoreEnvFile: true,
-          load: [
-            () => ({
-              TWILIO_ACCOUNT_SID: 'ACdummy_sid_1234567890123456789012',
-              TWILIO_AUTH_TOKEN: 'dummy_token',
-              TWILIO_FROM_NUMBER: '+1234567890',
-              SENDGRID_API_KEY: 'SG.dummy_key',
-              SENDGRID_FROM_EMAIL: 'test@factopay.com',
-            }),
-          ],
-        }),
-        EventEmitterModule.forRoot(),
-        NotificationModule,
-      ],
-    })
-      .overrideProvider(PrismaService)
-      .useValue({
-        user: {
-          findUnique: jest.fn().mockResolvedValue({
-            id: 'user-123',
-            email: 'user@example.com',
-            phoneNumber: '+0987654321',
-            profile: {
-              firstName: 'Alice',
-            }
-          }),
-        },
-      })
-      .compile();
-
-    await module.init();
-
-    const smsGateway = module.get(SMS_GATEWAY_TOKEN);
-    const emailGateway = module.get(EMAIL_GATEWAY_TOKEN);
-    eventEmitter = module.get(EventEmitter2);
-
-    // Spy on the actual adapter methods to ensure they are called
-    const smsSpy = jest.spyOn(smsGateway, 'sendSms').mockImplementation(async () => true);
-    const emailSpy = jest.spyOn(emailGateway, 'sendEmail').mockImplementation(async () => true);
-
-    console.log('--- TEST: Emitting transfer.completed...');
-    await eventEmitter.emitAsync('transfer.completed', {
-      transferId: 'tx-123',
-      userId: 'user-123',
-      amount: '100',
-      currency: 'EUR',
-      recipientId: 'rec-456',
-    });
-
-    expect(smsSpy).toHaveBeenCalledWith(
-      '+0987654321',
-      'Hi Alice, your transfer of 100 EUR to rec-456 has successfully completed. Transfer ID: tx-123',
-    );
-    expect(emailSpy).toHaveBeenCalledWith(
-      'user@example.com',
-      'Your FactoPay Transfer has successfully completed',
-      'Hi Alice, your transfer of 100 EUR to rec-456 has successfully completed. Transfer ID: tx-123',
-    );
-
-    console.log('--- TEST: Twilio Adapter was called successfully');
-    console.log('--- TEST: SendGrid Adapter was called successfully');
   });
 });

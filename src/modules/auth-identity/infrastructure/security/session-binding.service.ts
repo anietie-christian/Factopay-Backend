@@ -1,8 +1,9 @@
 import * as crypto from 'crypto';
+import { getRequiredEnv } from '../../../../config/required-env';
 
 export class SessionBindingService {
   private static getSalt(): string {
-    return process.env.SESSION_BINDING_SALT || 'session-binding-salt-default-key!';
+    return getRequiredEnv('SESSION_BINDING_SALT');
   }
 
   public static getSubnet(ip: string | undefined): string {

@@ -59,6 +59,7 @@ describe('B2B Gateway API (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api/v1');
     await app.init();
 
     prisma = moduleFixture.get<PrismaService>(PrismaService);

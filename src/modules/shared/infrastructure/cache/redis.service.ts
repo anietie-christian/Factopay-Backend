@@ -7,6 +7,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
 
   onModuleInit() {
+    if (process.env.NODE_ENV === 'test' && !process.env.REDIS_HOST) {
+      return;
+    }
+
     // In production, configure host/port from environment variables.
     // For our docker-compose setup, 'redis' is the service name and 6379 is the default port.
     this.redisClient = new Redis({
@@ -25,24 +29,34 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() {
     if (this.redisClient) {
-      this.redisClient.quit();
+      this.redisClient.disconnect();
     }
   }
 
   async setWithExpiry(key: string, value: string, ttlSeconds: number): Promise<void> {
+    this.assertClient();
     await this.redisClient.set(key, value, 'EX', ttlSeconds);
   }
 
   async setNxWithExpiry(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    this.assertClient();
     const result = await this.redisClient.set(key, value, 'EX', ttlSeconds, 'NX');
     return result === 'OK';
   }
 
   async get(key: string): Promise<string | null> {
+    this.assertClient();
     return this.redisClient.get(key);
   }
 
   async delete(key: string): Promise<void> {
+    this.assertClient();
     await this.redisClient.del(key);
+  }
+
+  private assertClient(): void {
+    if (!this.redisClient) {
+      throw new Error('Redis client is not initialized. Set REDIS_HOST or provide a RedisService mock.');
+    }
   }
 }

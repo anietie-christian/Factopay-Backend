@@ -1,15 +1,16 @@
 import * as crypto from 'crypto';
+import { getRequiredEnv } from '../../../../config/required-env';
 
 export class PiiCrypt {
   private static readonly ALGORITHM = 'aes-256-gcm';
 
   private static getKey(): Buffer {
-    const key = process.env.PII_ENCRYPTION_KEY || 'pii-encryption-key-default-32bytes-long-key!';
+    const key = getRequiredEnv('PII_ENCRYPTION_KEY');
     return crypto.createHash('sha256').update(key).digest();
   }
 
   private static getBlindIndexSalt(): string {
-    return process.env.PII_BLIND_INDEX_SALT || 'pii-blind-index-salt-default-fallback-salt';
+    return getRequiredEnv('PII_BLIND_INDEX_SALT');
   }
 
   public static encrypt(text: string | null | undefined): string | null {
