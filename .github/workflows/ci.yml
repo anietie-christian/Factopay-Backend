@@ -28,7 +28,7 @@ jobs:
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
-          --health-runs 5
+          --health-retries 5
 
       redis:
         image: redis:alpine
@@ -38,7 +38,7 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
-          --health-runs 5
+          --health-retries 5
 
     steps:
       - name: Checkout Code
