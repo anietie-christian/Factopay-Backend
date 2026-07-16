@@ -68,6 +68,7 @@ jobs:
       - name: Setup Prisma Schema
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
+          DIRECT_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
         run: |
           npx prisma generate
           npx prisma db push --accept-data-loss
@@ -75,6 +76,7 @@ jobs:
       - name: Run Tests
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
+          DIRECT_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_ACCESS_SECRET: supersecretaccesskeytest123!@#
