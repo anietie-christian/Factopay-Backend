@@ -17,7 +17,7 @@ export class HandleKycWebhookUseCase {
     private readonly eventEmitter: EventEmitter2,
   ) { }
 
-  async execute(rawBody: string, signatureHeader: string, payload: SumsubWebhookDto): Promise<{ success: boolean }> {
+  async execute(rawBody: Buffer | string | undefined, signatureHeader: string, payload: SumsubWebhookDto): Promise<{ success: boolean }> {
     const webhookSecret = this.configService.get<string>('SUMSUB_WEBHOOK_SECRET');
 
     if (!webhookSecret) {
@@ -28,12 +28,22 @@ export class HandleKycWebhookUseCase {
       throw new UnauthorizedException('Missing Sumsub webhook signature header.');
     }
 
+    if (!rawBody) {
+      throw new UnauthorizedException('Raw request body is required for Sumsub signature verification.');
+    }
+
     const computedHash = crypto
       .createHmac('sha256', webhookSecret)
       .update(rawBody)
       .digest('hex');
 
-    if (computedHash !== signatureHeader) {
+    const signatureBuffer = Buffer.from(signatureHeader, 'hex');
+    const computedBuffer = Buffer.from(computedHash, 'hex');
+
+    if (
+      signatureBuffer.length !== computedBuffer.length ||
+      !crypto.timingSafeEqual(signatureBuffer, computedBuffer)
+    ) {
       throw new UnauthorizedException('Invalid Sumsub webhook signature.');
     }
 

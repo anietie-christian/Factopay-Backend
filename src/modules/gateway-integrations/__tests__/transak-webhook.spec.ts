@@ -4,10 +4,10 @@ import * as request from 'supertest';
 // @ts-ignore
 const req: any = request.default || request;
 import * as crypto from 'crypto';
-import { GatewayIntegrationsModule } from '../gateway-integrations.module';
-import { ConfigModule } from '@nestjs/config';
+import { json } from 'express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
+import { TransakWebhookController } from '../infrastructure/controllers/transak-webhook.controller';
+import { TransakSignatureMiddleware } from '../infrastructure/middleware/transak-signature.middleware';
 
 describe('Transak Webhook (e2e)', () => {
   let app: INestApplication;
@@ -17,16 +17,23 @@ describe('Transak Webhook (e2e)', () => {
     process.env.TRANSAK_WEBHOOK_SECRET = webhookSecret;
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
         EventEmitterModule.forRoot(),
-        GatewayIntegrationsModule,
       ],
-    })
-      .overrideProvider(PrismaService)
-      .useValue({})
-      .compile();
+      controllers: [TransakWebhookController],
+    }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ bodyParser: false });
+    app.use(
+      json({
+        verify: (req: any, _res, buffer) => {
+          req.rawBody = Buffer.from(buffer);
+        },
+      }),
+    );
+    const signatureMiddleware = new TransakSignatureMiddleware();
+    app.use('/webhooks/transak', (req, res, next) => {
+      signatureMiddleware.use(req, res, next);
+    });
     await app.init();
   });
 

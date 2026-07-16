@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
 import { SessionBindingService } from '../security/session-binding.service';
+import { getRequiredEnv } from '../../../../config/required-env';
 
 export interface JwtPayload {
   sub: string;
@@ -10,6 +11,8 @@ export interface JwtPayload {
   role: string;
   kycStatus: string;
   fpt?: string;
+  jti?: string;
+  typ?: string;
 }
 
 @Injectable()
@@ -21,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'fallbackSecretKey123!',
+      secretOrKey: getRequiredEnv('JWT_SECRET'),
       passReqToCallback: true,
     });
   }

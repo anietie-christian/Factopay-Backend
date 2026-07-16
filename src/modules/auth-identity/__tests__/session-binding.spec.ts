@@ -91,6 +91,7 @@ describe('Device Fingerprinting & IP-Subnet Session Binding', () => {
     let useCase: RefreshTokenUseCase;
     let mockUserRepository: any;
     let mockJwtService: any;
+    let mockSessionTokenService: any;
 
     beforeEach(() => {
       mockUserRepository = {
@@ -98,9 +99,18 @@ describe('Device Fingerprinting & IP-Subnet Session Binding', () => {
       };
       mockJwtService = {
         verify: jest.fn(),
-        sign: jest.fn().mockReturnValue('new-token-string'),
       };
-      useCase = new RefreshTokenUseCase(mockUserRepository, mockJwtService);
+      mockSessionTokenService = {
+        rotateRefreshToken: jest.fn().mockResolvedValue({
+          accessToken: 'new-access-token',
+          refreshToken: 'new-refresh-token',
+        }),
+      };
+      useCase = new RefreshTokenUseCase(
+        mockUserRepository,
+        mockJwtService,
+        mockSessionTokenService,
+      );
     });
 
     it('should allow token refresh when fingerprint matches', async () => {
@@ -116,7 +126,19 @@ describe('Device Fingerprinting & IP-Subnet Session Binding', () => {
 
       const result = await useCase.execute({ refreshToken: 'valid-token' }, fpt);
       expect(result).toBeDefined();
-      expect(result.accessToken).toBe('new-token-string');
+      expect(result.accessToken).toBe('new-access-token');
+      expect(mockSessionTokenService.rotateRefreshToken).toHaveBeenCalledWith(
+        'valid-token',
+        expect.objectContaining({
+          sub: 'user-123',
+          email: 'test@example.com',
+          fpt,
+        }),
+        expect.objectContaining({
+          id: 'user-123',
+        }),
+        { fingerprint: fpt },
+      );
     });
 
     it('should throw UnauthorizedException when fingerprint mismatches during refresh', async () => {

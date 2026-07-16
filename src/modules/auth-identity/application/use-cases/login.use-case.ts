@@ -3,6 +3,7 @@ import { LoginDto } from '../dtos/login.dto';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { SessionContext, SessionTokenService } from '../../infrastructure/security/session-token.service';
 
 @Injectable()
 export class LoginUseCase {
@@ -10,9 +11,10 @@ export class LoginUseCase {
     @Inject(USER_REPOSITORY_TOKEN)
     private readonly userRepository: IUserRepository,
     private readonly jwtService: JwtService,
+    private readonly sessionTokenService: SessionTokenService,
   ) {}
 
-  async execute(dto: LoginDto, fingerprint?: string): Promise<{ mfaRequired: boolean; mfaToken?: string; accessToken?: string; refreshToken?: string; userId?: string; email?: string; kycStatus?: string }> {
+  async execute(dto: LoginDto, sessionContext?: SessionContext | string): Promise<{ mfaRequired: boolean; mfaToken?: string; accessToken?: string; refreshToken?: string; userId?: string; email?: string; kycStatus?: string }> {
     const user = await this.userRepository.findByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -48,18 +50,7 @@ export class LoginUseCase {
     user.recordLogin();
     await this.userRepository.save(user);
 
-    // Generate payload
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      kycStatus: user.kycStatus,
-      ...(fingerprint && { fpt: fingerprint }),
-    };
-
-    // Generate JWT and refresh token
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    const { accessToken, refreshToken } = await this.sessionTokenService.issueTokens(user, sessionContext);
 
     return {
       mfaRequired: false,

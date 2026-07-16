@@ -33,17 +33,19 @@ import { AdminGetAuditLogUseCase } from './application/use-cases/admin-get-audit
 import { TotpService } from './infrastructure/adapters/totp.service';
 import { SocialAuthService } from './infrastructure/adapters/social-auth.service';
 import { JwtStrategy } from './infrastructure/strategy/jwt.strategy';
+import { SessionTokenService } from './infrastructure/security/session-token.service';
 import { USER_REPOSITORY_TOKEN } from './domain/repositories/user-repository.interface';
 import { PrismaUserRepository } from './infrastructure/persistence/prisma-user.repository';
 import { OTP_REPOSITORY_TOKEN } from './domain/repositories/otp-repository.interface';
 import { PrismaOtpRepository } from './infrastructure/database/repositories/prisma-otp.repository';
+import { getRequiredEnv } from '../../config/required-env';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        secret: configService.get<string>('JWT_SECRET') || getRequiredEnv('JWT_SECRET'),
         signOptions: { expiresIn: '15m' },
       }),
       inject: [ConfigService],
@@ -76,6 +78,7 @@ import { PrismaOtpRepository } from './infrastructure/database/repositories/pris
     // Adapters/Infrastructure
     TotpService,
     SocialAuthService,
+    SessionTokenService,
     JwtStrategy,
     {
       provide: USER_REPOSITORY_TOKEN,

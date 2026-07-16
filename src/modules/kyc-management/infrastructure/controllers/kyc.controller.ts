@@ -45,9 +45,10 @@ export class KycController {
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Headers('x-payload-digest') signatureHeader: string,
+    @Req() req: any,
     @Body() body: SumsubWebhookDto,
   ) {
-    const rawBody = JSON.stringify(body);
+    const rawBody = req.rawBody;
     return this.handleKycWebhookUseCase.execute(rawBody, signatureHeader, body);
   }
 }

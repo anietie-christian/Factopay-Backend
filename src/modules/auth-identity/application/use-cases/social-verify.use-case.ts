@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { SocialAuthService } from '../../infrastructure/adapters/social-auth.service';
 import { User, Role, KycStatus } from '../../domain/models/user.model';
 import { JwtService } from '@nestjs/jwt';
+import { SessionContext, SessionTokenService } from '../../infrastructure/security/session-token.service';
 
 export interface SocialVerifyResult {
   mfaRequired: boolean;
@@ -24,9 +25,10 @@ export class SocialVerifyUseCase {
     private readonly userRepository: IUserRepository,
     private readonly socialAuthService: SocialAuthService,
     private readonly jwtService: JwtService,
+    private readonly sessionTokenService: SessionTokenService,
   ) { }
 
-  async execute(provider: 'GOOGLE' | 'APPLE', token: string, fingerprint?: string): Promise<SocialVerifyResult> {
+  async execute(provider: 'GOOGLE' | 'APPLE', token: string, sessionContext?: SessionContext | string): Promise<SocialVerifyResult> {
     // 1. Verify token with provider
     const socialProfile = await this.socialAuthService.verifyToken(provider, token);
 
@@ -34,7 +36,7 @@ export class SocialVerifyUseCase {
     let user = await this.userRepository.findBySocialProvider(provider, socialProfile.providerId);
 
     if (user) {
-      return this.handleExistingUserLogin(user, fingerprint);
+      return this.handleExistingUserLogin(user, sessionContext);
     }
 
     // 3. If no social account mapping exists, check if user exists by email
@@ -42,7 +44,7 @@ export class SocialVerifyUseCase {
     if (userByEmail) {
       // Link social account to existing user
       await this.userRepository.linkSocialAccount(userByEmail.id, provider, socialProfile.providerId);
-      return this.handleExistingUserLogin(userByEmail, fingerprint);
+      return this.handleExistingUserLogin(userByEmail, sessionContext);
     }
 
     // 4. Create new user account with no password/phone (PENDING signup stage)
@@ -81,7 +83,7 @@ export class SocialVerifyUseCase {
     };
   }
 
-  private async handleExistingUserLogin(user: User, fingerprint?: string): Promise<SocialVerifyResult> {
+  private async handleExistingUserLogin(user: User, sessionContext?: SessionContext | string): Promise<SocialVerifyResult> {
     if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
@@ -116,16 +118,7 @@ export class SocialVerifyUseCase {
     user.recordLogin();
     await this.userRepository.save(user);
 
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      kycStatus: user.kycStatus,
-      ...(fingerprint && { fpt: fingerprint }),
-    };
-
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    const { accessToken, refreshToken } = await this.sessionTokenService.issueTokens(user, sessionContext);
 
     return {
       mfaRequired: false,

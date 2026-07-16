@@ -3,6 +3,7 @@ import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositorie
 import { TotpService } from '../../infrastructure/adapters/totp.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { SessionContext, SessionTokenService } from '../../infrastructure/security/session-token.service';
 
 @Injectable()
 export class VerifyMfaUseCase {
@@ -11,9 +12,10 @@ export class VerifyMfaUseCase {
     private readonly userRepository: IUserRepository,
     private readonly totpService: TotpService,
     private readonly jwtService: JwtService,
+    private readonly sessionTokenService: SessionTokenService,
   ) {}
 
-  async execute(mfaToken: string, code: string, fingerprint?: string): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
+  async execute(mfaToken: string, code: string, sessionContext?: SessionContext | string): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
     let payload: any;
     try {
       payload = this.jwtService.verify(mfaToken);
@@ -65,18 +67,7 @@ export class VerifyMfaUseCase {
     user.recordLogin();
     await this.userRepository.save(user);
 
-    // Generate payload
-    const tokenPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      kycStatus: user.kycStatus,
-      ...(fingerprint && { fpt: fingerprint }),
-    };
-
-    // Generate JWT access and refresh tokens
-    const accessToken = this.jwtService.sign(tokenPayload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(tokenPayload, { expiresIn: '7d' });
+    const { accessToken, refreshToken } = await this.sessionTokenService.issueTokens(user, sessionContext);
 
     return {
       accessToken,

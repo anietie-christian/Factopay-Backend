@@ -6,6 +6,7 @@ import { VerifyMfaUseCase } from '../application/use-cases/verify-mfa.use-case';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../domain/repositories/user-repository.interface';
 import { User, Role, KycStatus } from '../domain/models/user.model';
 import { TotpService } from '../infrastructure/adapters/totp.service';
+import { SessionTokenService } from '../infrastructure/security/session-token.service';
 import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 
@@ -15,6 +16,9 @@ describe('Login & MFA Use Cases Integration', () => {
   let totpService: TotpService;
   let jwtService: JwtService;
   let mockUserRepository: jest.Mocked<IUserRepository>;
+  let mockSessionTokenService: {
+    issueTokens: jest.Mock;
+  };
 
   const rawPassword = 'SecurePassword123!';
   let passwordHash: string;
@@ -78,6 +82,12 @@ describe('Login & MFA Use Cases Integration', () => {
       linkSocialAccount: jest.fn(),
       save: jest.fn().mockImplementation((user) => Promise.resolve(user)),
     } as any;
+    mockSessionTokenService = {
+      issueTokens: jest.fn().mockResolvedValue({
+        accessToken: 'session-access-token',
+        refreshToken: 'session-refresh-token',
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -91,6 +101,10 @@ describe('Login & MFA Use Cases Integration', () => {
         {
           provide: USER_REPOSITORY_TOKEN,
           useValue: mockUserRepository,
+        },
+        {
+          provide: SessionTokenService,
+          useValue: mockSessionTokenService,
         },
       ],
     }).compile();
@@ -112,6 +126,7 @@ describe('Login & MFA Use Cases Integration', () => {
       expect(result.mfaRequired).toBe(false);
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
+      expect(mockSessionTokenService.issueTokens).toHaveBeenCalledWith(userWithoutMfa, undefined);
       expect(result.userId).toBe(userWithoutMfa.id);
       expect(mockUserRepository.save).toHaveBeenCalled();
     });
@@ -167,6 +182,7 @@ describe('Login & MFA Use Cases Integration', () => {
 
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
+      expect(mockSessionTokenService.issueTokens).toHaveBeenCalledWith(userWithMfa, undefined);
       expect(result.userId).toBe(userWithMfa.id);
       expect(mockUserRepository.save).toHaveBeenCalled();
     });

@@ -3,6 +3,7 @@ import { RefreshTokenDto } from '../dtos/refresh-token.dto';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from '../../infrastructure/strategy/jwt.strategy';
+import { SessionContext, SessionTokenService } from '../../infrastructure/security/session-token.service';
 
 @Injectable()
 export class RefreshTokenUseCase {
@@ -10,14 +11,16 @@ export class RefreshTokenUseCase {
     @Inject(USER_REPOSITORY_TOKEN)
     private readonly userRepository: IUserRepository,
     private readonly jwtService: JwtService,
+    private readonly sessionTokenService: SessionTokenService,
   ) {}
 
-  async execute(dto: RefreshTokenDto, fingerprint?: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async execute(dto: RefreshTokenDto, sessionContext?: SessionContext | string): Promise<{ accessToken: string; refreshToken: string }> {
     try {
+      const normalizedContext = SessionTokenService.normalizeContext(sessionContext);
       // Decode and verify the refresh token
       const payload: JwtPayload = this.jwtService.verify(dto.refreshToken);
 
-      if (payload.fpt && fingerprint && payload.fpt !== fingerprint) {
+      if (payload.fpt && payload.fpt !== normalizedContext.fingerprint) {
         throw new UnauthorizedException('Token binding mismatch');
       }
 
@@ -26,24 +29,16 @@ export class RefreshTokenUseCase {
         throw new UnauthorizedException('User is inactive or no longer exists');
       }
 
-      // Generate new payload
-      const newPayload = {
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-        kycStatus: user.kycStatus,
-        ...(fingerprint && { fpt: fingerprint }),
-      };
-
-      // Generate fresh tokens
-      const accessToken = this.jwtService.sign(newPayload, { expiresIn: '15m' });
-      const refreshToken = this.jwtService.sign(newPayload, { expiresIn: '7d' });
-
-      return {
-        accessToken,
-        refreshToken,
-      };
+      return await this.sessionTokenService.rotateRefreshToken(
+        dto.refreshToken,
+        payload,
+        user,
+        normalizedContext,
+      );
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }

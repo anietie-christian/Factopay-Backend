@@ -26,7 +26,20 @@ describe('HTTP Security Headers (Helmet)', () => {
     // Wire in Helmet exactly as in main.ts
     app.use(
       helmet({
-        contentSecurityPolicy: false,
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            baseUri: ["'self'"],
+            fontSrc: ["'self'", 'https:', 'data:'],
+            formAction: ["'self'"],
+            frameAncestors: ["'self'"],
+            imgSrc: ["'self'", 'data:'],
+            objectSrc: ["'none'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrcAttr: ["'none'"],
+            styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
+          },
+        },
         crossOriginEmbedderPolicy: false,
       }),
     );
@@ -48,7 +61,6 @@ describe('HTTP Security Headers (Helmet)', () => {
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
     
-    // Confirm CSP is disabled for Swagger support as configured
-    expect(response.headers['content-security-policy']).toBeUndefined();
+    expect(response.headers['content-security-policy']).toContain("default-src 'self'");
   });
 });

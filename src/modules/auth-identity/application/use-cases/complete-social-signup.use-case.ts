@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
 import { JwtService } from '@nestjs/jwt';
+import { SessionContext, SessionTokenService } from '../../infrastructure/security/session-token.service';
 
 @Injectable()
 export class CompleteSocialSignupUseCase {
@@ -8,9 +9,10 @@ export class CompleteSocialSignupUseCase {
     @Inject(USER_REPOSITORY_TOKEN)
     private readonly userRepository: IUserRepository,
     private readonly jwtService: JwtService,
+    private readonly sessionTokenService: SessionTokenService,
   ) {}
 
-  async execute(registrationToken: string, phoneNumber: string, fingerprint?: string): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
+  async execute(registrationToken: string, phoneNumber: string, sessionContext?: SessionContext | string): Promise<{ accessToken: string; refreshToken: string; userId: string; email: string; kycStatus: string }> {
     let payload: any;
     try {
       payload = this.jwtService.verify(registrationToken);
@@ -39,18 +41,7 @@ export class CompleteSocialSignupUseCase {
     user.isPhoneVerified = true; // Mark as verified since the signup step is completed
     await this.userRepository.save(user);
 
-    // Generate login payload
-    const tokenPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      kycStatus: user.kycStatus,
-      ...(fingerprint && { fpt: fingerprint }),
-    };
-
-    // Generate standard session tokens
-    const accessToken = this.jwtService.sign(tokenPayload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(tokenPayload, { expiresIn: '7d' });
+    const { accessToken, refreshToken } = await this.sessionTokenService.issueTokens(user, sessionContext);
 
     return {
       accessToken,

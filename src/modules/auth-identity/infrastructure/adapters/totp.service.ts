@@ -2,14 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { authenticator } from 'otplib';
 import * as qrcode from 'qrcode';
 import * as crypto from 'crypto';
+import { getRequiredEnv } from '../../../../config/required-env';
 
 @Injectable()
 export class TotpService {
   private readonly algorithm = 'aes-256-cbc';
   
-  // Derives a 32-byte key from JWT_SECRET for encryption
+  // Derives a 32-byte key from a dedicated TOTP encryption secret.
   private getEncryptionKey(): Buffer {
-    const secret = process.env.JWT_SECRET || 'fallbackSecretKeyChangeMeOnProduction98765!';
+    const secret = getRequiredEnv('TOTP_ENCRYPTION_KEY');
     return crypto.createHash('sha256').update(secret).digest();
   }
 

@@ -13,7 +13,20 @@ import { NotificationModule } from './modules/notification-service/notification.
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuditComplianceModule } from './modules/audit-compliance/audit-compliance.module';
+import { RewardsPointsModule } from './modules/rewards-points/rewards-points.module';
+import { B2bGatewayModule } from './modules/b2b-gateway/b2b-gateway.module';
 import { secretsLoader } from './config/secrets.loader';
+
+try {
+  process.loadEnvFile?.();
+} catch {
+  // ConfigModule will handle env loading and validation during bootstrap.
+}
+
+const productModules = [
+  ...(process.env.ENABLE_REWARDS_POINTS === 'false' ? [] : [RewardsPointsModule]),
+  ...(process.env.ENABLE_B2B_GATEWAY === 'true' ? [B2bGatewayModule] : []),
+];
 
 @Module({
   imports: [
@@ -38,6 +51,7 @@ import { secretsLoader } from './config/secrets.loader';
     NotificationModule,
     AuditModule,
     AuditComplianceModule,
+    ...productModules,
     EventEmitterModule.forRoot(),
   ],
   controllers: [],
