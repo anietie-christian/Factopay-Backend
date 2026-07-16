@@ -3,6 +3,7 @@ import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { webhookBackoffStrategy } from '../../infrastructure/bullmq/custom-backoff';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
+import { RecordWebhookEventUseCase } from '../use-cases/record-webhook-event.use-case';
 
 @Processor('webhook-dlq', {
   settings: {
@@ -12,7 +13,10 @@ import { PrismaService } from '../../../shared/infrastructure/database/prisma.se
 export class WebhookProcessor extends WorkerHost {
   private readonly logger = new Logger(WebhookProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly recordWebhookUseCase: RecordWebhookEventUseCase,
+  ) {
     super();
   }
 
@@ -20,12 +24,24 @@ export class WebhookProcessor extends WorkerHost {
     this.logger.log(`Processing webhook job ${job.id} for event ${job.name}`);
 
     const payload = job.data;
+    const eventId = payload?.data?.id ? String(payload.data.id) : String(payload?.id || 'unknown');
 
-    switch (job.name) {
-      case 'process_flutterwave':
-        return this.processFlutterwaveWebhook(payload);
-      default:
-        this.logger.warn(`Unknown job name: ${job.name}`);
+    try {
+      let result;
+      switch (job.name) {
+        case 'process_flutterwave':
+          result = await this.processFlutterwaveWebhook(payload);
+          break;
+        default:
+          this.logger.warn(`Unknown job name: ${job.name}`);
+          result = { processed: false };
+      }
+
+      await this.recordWebhookUseCase.updateStatus('FLUTTERWAVE', eventId, 'PROCESSED');
+      return result;
+    } catch (error) {
+      await this.recordWebhookUseCase.updateStatus('FLUTTERWAVE', eventId, 'FAILED');
+      throw error;
     }
   }
 

@@ -12,6 +12,13 @@ export enum KycStatus {
   REJECTED = 'REJECTED',
 }
 
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  CLOSURE_REQUESTED = 'CLOSURE_REQUESTED',
+  CLOSED = 'CLOSED',
+}
+
 export class User {
   public profile?: {
     firstName: string;
@@ -46,6 +53,7 @@ export class User {
     public isMfaEnabled: boolean = false,
     public mfaSecret: string | null = null,
     public mfaBackupCodes: string[] = [],
+    public status: UserStatus = UserStatus.ACTIVE,
   ) {}
 
   getPasswordHash(): string | null {

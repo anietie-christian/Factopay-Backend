@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const user = await this.userRepository.findById(payload.sub);
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.status !== 'ACTIVE') {
       throw new UnauthorizedException('User is inactive or does not exist');
     }
     return {

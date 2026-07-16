@@ -87,6 +87,13 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSURE_REQUESTED
+  CLOSED
+}
+
 enum TransferStatus {
   CREATED
   PENDING_KYC
@@ -95,18 +102,29 @@ enum TransferStatus {
   BLOCKCHAIN_PENDING
   COMPLETED
   FAILED
+  CANCELLED
+  DISPUTED
 }
 
 model Transfer {
-  id              String         @id @default(uuid()) @db.Uuid
-  userId          String         @map("user_id") @db.Uuid
-  amount          Decimal        @db.Decimal(18, 4)
-  currency        String         @db.VarChar(5)
-  status          TransferStatus @default(CREATED)
-  idempotencyKey  String         @unique @map("idempotency_key") @db.VarChar(255)
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime       @default(now()) @map("updated_at") @db.Timestamptz
+  id                 String         @id @default(uuid()) @db.Uuid
+  userId             String         @map("user_id") @db.Uuid
+  amount             Decimal        @db.Decimal(18, 4)
+  currency           String         @db.VarChar(5)
+  status             TransferStatus @default(CREATED)
+  idempotencyKey     String         @unique @map("idempotency_key") @db.VarChar(255)
+  recipientId        String?        @map("recipient_id") @db.Uuid
+  fxQuoteId          String?        @map("fx_quote_id") @db.VarChar(255)
+  failureReason      String?        @map("failure_reason") @db.VarChar(255)
+  completedAt        DateTime?      @map("completed_at") @db.Timestamptz
+  adminReviewStatus  String?        @map("admin_review_status") @db.VarChar(20)
+  adminReviewerId    String?        @map("admin_reviewer_id") @db.Uuid
+  adminNotes         String?        @map("admin_notes") @db.Text
+  cancelledAt        DateTime?      @map("cancelled_at") @db.Timestamptz
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime       @default(now()) @map("updated_at") @db.Timestamptz
 
+  @@unique([userId, recipientId, amount, currency, fxQuoteId])
   @@map("transfers")
 }
 
@@ -126,6 +144,7 @@ model User {
   kycTier         String   @default("NONE") @map("kyc_tier") @db.VarChar(10)
   role            String   @default("USER") @db.VarChar(20)
   isActive        Boolean  @default(true) @map("is_active")
+  status          UserStatus @default(ACTIVE)
   lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -143,8 +162,38 @@ model User {
   kycAttempts     KycVerificationAttempt[]
   pointsAccount   PointsAccount?
   gatewayApiKeys  GatewayApiKey[]
+  closureRequest  AccountClosureRequest?
 
   @@map("users")
+}
+
+model AccountClosureRequest {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  reason         String?  @db.VarChar(500)
+  status         String   @default("PENDING") @db.VarChar(20) // PENDING, COMPLETED, CANCELLED
+  requestedAt    DateTime @default(now()) @map("requested_at") @db.Timestamptz
+  coolingOffEnds DateTime @map("cooling_off_ends") @db.Timestamptz // +30 days
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account_closure_requests")
+}
+
+model WebhookEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  provider        String   @db.VarChar(30) // FLUTTERWAVE, TRANSAK, SUMSUB
+  eventId         String   @map("event_id") @db.VarChar(255)
+  eventType       String?  @map("event_type") @db.VarChar(100)
+  signatureTs     DateTime? @map("signature_ts") @db.Timestamptz
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz
+  status          String   @default("RECEIVED") @db.VarChar(20) // RECEIVED, PROCESSED, SKIPPED, FAILED
+  metadata        Json?    @db.JsonB
+
+  @@unique([provider, eventId])
+  @@index([provider, receivedAt])
+  @@map("webhook_events")
 }
 
 model UserProfile {

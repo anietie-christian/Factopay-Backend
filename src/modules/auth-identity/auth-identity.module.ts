@@ -20,6 +20,12 @@ import { DisableMfaUseCase } from './application/use-cases/disable-mfa.use-case'
 import { VerifyMfaUseCase } from './application/use-cases/verify-mfa.use-case';
 import { SocialVerifyUseCase } from './application/use-cases/social-verify.use-case';
 import { CompleteSocialSignupUseCase } from './application/use-cases/complete-social-signup.use-case';
+import { LogoutUseCase } from './application/use-cases/logout.use-case';
+import { LogoutAllUseCase } from './application/use-cases/logout-all.use-case';
+import { ListSessionsUseCase } from './application/use-cases/list-sessions.use-case';
+import { RequestAccountClosureUseCase } from './application/use-cases/request-account-closure.use-case';
+import { CancelAccountClosureUseCase } from './application/use-cases/cancel-account-closure.use-case';
+import { CompleteAccountClosureUseCase } from './application/use-cases/complete-account-closure.use-case';
 
 // Admin Use Cases
 import { AdminListUsersUseCase } from './application/use-cases/admin-list-users.use-case';
@@ -67,6 +73,12 @@ import { getRequiredEnv } from '../../config/required-env';
     VerifyMfaUseCase,
     SocialVerifyUseCase,
     CompleteSocialSignupUseCase,
+    LogoutUseCase,
+    LogoutAllUseCase,
+    ListSessionsUseCase,
+    RequestAccountClosureUseCase,
+    CancelAccountClosureUseCase,
+    CompleteAccountClosureUseCase,
     // Admin endpoints Use Cases
     AdminListUsersUseCase,
     AdminGetUserDetailsUseCase,

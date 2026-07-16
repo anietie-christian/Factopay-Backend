@@ -12,10 +12,17 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { webhookBackoffStrategy } from './infrastructure/bullmq/custom-backoff';
 import { bullBoardAuthMiddleware } from './infrastructure/middleware/bull-board-auth.middleware';
 import { OutboundWebhookService } from './application/services/outbound-webhook.service';
+import { RecordWebhookEventUseCase } from './application/use-cases/record-webhook-event.use-case';
+import { BlockchainReconciliationWorker } from './application/workers/blockchain-reconciliation.worker';
+import { WebhookReconciliationWorker } from './application/workers/webhook-reconciliation.worker';
+import { BlockchainSettlementModule } from '../blockchain-settlement/blockchain-settlement.module';
+import { WalletLedgerModule } from '../wallet-ledger/wallet-ledger.module';
 
 @Module({
   imports: [
     SharedModule,
+    BlockchainSettlementModule,
+    WalletLedgerModule,
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST || 'redis',
@@ -36,8 +43,14 @@ import { OutboundWebhookService } from './application/services/outbound-webhook.
     }),
   ],
   controllers: [WebhookController, TransakWebhookController],
-  providers: [WebhookProcessor, OutboundWebhookService],
-  exports: [OutboundWebhookService],
+  providers: [
+    WebhookProcessor,
+    OutboundWebhookService,
+    RecordWebhookEventUseCase,
+    BlockchainReconciliationWorker,
+    WebhookReconciliationWorker,
+  ],
+  exports: [OutboundWebhookService, RecordWebhookEventUseCase],
 })
 export class GatewayIntegrationsModule {
   configure(consumer: MiddlewareConsumer) {

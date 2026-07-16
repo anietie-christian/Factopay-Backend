@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IUserRepository } from '../../domain/repositories/user-repository.interface';
-import { User, Role, KycStatus } from '../../domain/models/user.model';
+import { User, Role, KycStatus, UserStatus } from '../../domain/models/user.model';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { PiiCrypt } from '../security/pii-crypt';
 
@@ -26,6 +26,7 @@ export class PrismaUserRepository implements IUserRepository {
       dbUser.isMfaEnabled,
       dbUser.mfaSecret,
       dbUser.mfaBackupCodes,
+      dbUser.status as UserStatus,
     );
   }
 
@@ -42,6 +43,7 @@ export class PrismaUserRepository implements IUserRepository {
       kycTier: user.kycTier,
       role: user.role,
       isActive: user.isActive,
+      status: user.status,
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -117,6 +119,7 @@ export class PrismaUserRepository implements IUserRepository {
         kycTier: data.kycTier,
         role: data.role,
         isActive: data.isActive,
+        status: data.status,
         lastLoginAt: data.lastLoginAt,
         updatedAt: data.updatedAt,
         isMfaEnabled: data.isMfaEnabled,

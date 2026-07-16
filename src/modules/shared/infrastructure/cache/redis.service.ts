@@ -54,6 +54,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.redisClient.del(key);
   }
 
+  async ping(): Promise<string> {
+    this.assertClient();
+    return this.redisClient.ping();
+  }
+
   private assertClient(): void {
     if (!this.redisClient) {
       throw new Error('Redis client is not initialized. Set REDIS_HOST or provide a RedisService mock.');

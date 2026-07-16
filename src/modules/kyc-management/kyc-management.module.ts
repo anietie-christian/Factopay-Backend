@@ -29,8 +29,10 @@ const kycProviderFactory: FactoryProvider<IKycProvider> = {
   inject: [ConfigService],
 };
 
+import { GatewayIntegrationsModule } from '../gateway-integrations/gateway-integrations.module';
+
 @Module({
-  imports: [SharedModule],
+  imports: [SharedModule, GatewayIntegrationsModule],
   controllers: [KycController, AdminKycController],
   providers: [
     // User-facing use cases

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Request, UseGuards, HttpCode, HttpStatus, Ip, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Body, Request, UseGuards, HttpCode, HttpStatus, Ip, Headers } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -10,6 +10,8 @@ import { RefreshTokenDto } from '../../application/dtos/refresh-token.dto';
 import { SocialVerifyDto } from '../../application/dtos/social-verify.dto';
 import { CompleteSocialSignupDto } from '../../application/dtos/complete-social-signup.dto';
 import { VerifyMfaDto } from '../../application/dtos/verify-mfa.dto';
+import { LogoutDto } from '../../application/dtos/logout.dto';
+import { RequestClosureDto } from '../../application/dtos/account-closure.dto';
 import { SessionBindingService } from '../security/session-binding.service';
 
 import { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
@@ -23,6 +25,12 @@ import { DisableMfaUseCase } from '../../application/use-cases/disable-mfa.use-c
 import { VerifyMfaUseCase } from '../../application/use-cases/verify-mfa.use-case';
 import { SocialVerifyUseCase } from '../../application/use-cases/social-verify.use-case';
 import { CompleteSocialSignupUseCase } from '../../application/use-cases/complete-social-signup.use-case';
+import { LogoutUseCase } from '../../application/use-cases/logout.use-case';
+import { LogoutAllUseCase } from '../../application/use-cases/logout-all.use-case';
+import { ListSessionsUseCase } from '../../application/use-cases/list-sessions.use-case';
+import { RequestAccountClosureUseCase } from '../../application/use-cases/request-account-closure.use-case';
+import { CancelAccountClosureUseCase } from '../../application/use-cases/cancel-account-closure.use-case';
+import { CompleteAccountClosureUseCase } from '../../application/use-cases/complete-account-closure.use-case';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -39,6 +47,11 @@ export class AuthController {
     private readonly verifyMfaUseCase: VerifyMfaUseCase,
     private readonly socialVerifyUseCase: SocialVerifyUseCase,
     private readonly completeSocialSignupUseCase: CompleteSocialSignupUseCase,
+    private readonly logoutUseCase: LogoutUseCase,
+    private readonly logoutAllUseCase: LogoutAllUseCase,
+    private readonly listSessionsUseCase: ListSessionsUseCase,
+    private readonly requestClosureUseCase: RequestAccountClosureUseCase,
+    private readonly cancelClosureUseCase: CancelAccountClosureUseCase,
   ) { }
 
   @Post('register')
@@ -200,5 +213,55 @@ export class AuthController {
       userAgent,
     };
     return this.completeSocialSignupUseCase.execute(body.registrationToken, body.phoneNumber, sessionContext);
+  }
+
+  @Post('logout')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout current session' })
+  @ApiResponse({ status: 200, description: 'Session revoked successfully' })
+  async logout(@Request() req: any, @Body() body: LogoutDto) {
+    return this.logoutUseCase.execute(req.user.id, body.refreshToken);
+  }
+
+  @Post('logout-all')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout all devices' })
+  @ApiResponse({ status: 200, description: 'All sessions revoked' })
+  async logoutAll(@Request() req: any) {
+    return this.logoutAllUseCase.execute(req.user.id);
+  }
+
+  @Get('sessions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List active sessions' })
+  @ApiResponse({ status: 200, description: 'Returns active sessions for the authenticated user' })
+  async listSessions(@Request() req: any) {
+    return this.listSessionsUseCase.execute(req.user.id);
+  }
+
+  @Post('closure')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request account closure (starts cooling-off period)' })
+  @ApiResponse({ status: 200, description: 'Closure request recorded and active sessions revoked' })
+  async requestClosure(@Request() req: any, @Body() body: RequestClosureDto) {
+    return this.requestClosureUseCase.execute(req.user.id, body.reason);
+  }
+
+  @Post('closure/cancel')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel pending account closure request' })
+  @ApiResponse({ status: 200, description: 'Closure request cancelled and account restored' })
+  async cancelClosure(@Request() req: any) {
+    return this.cancelClosureUseCase.execute(req.user.id);
   }
 }

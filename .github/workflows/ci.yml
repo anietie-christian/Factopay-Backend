@@ -1,0 +1,89 @@
+name: FactoPay CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build-and-test:
+    name: Build, Lint, and Run Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: factopay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-runs 5
+
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-runs 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Detect Hardcoded Secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true # Keep build green but flag issues in step output
+
+      - name: Check Dependencies Security (Audit)
+        run: npm audit --audit-level=high || true # Warn on high/critical deps issues
+
+      - name: Run Linter
+        run: npm run lint
+
+      - name: Setup Prisma Schema
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
+        run: |
+          npx prisma generate
+          npx prisma db push --accept-data-loss
+
+      - name: Run Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_ACCESS_SECRET: supersecretaccesskeytest123!@#
+          JWT_REFRESH_SECRET: supersecretrefreshkeytest123!@#
+          PII_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          TOTP_ENCRYPTION_KEY: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          SESSION_BINDING_SECRET: cccccccccccccccccccccccccccccccc
+          WEBHOOK_SIGNING_SECRET: dddddddddddddddddddddddddddddddd
+        run: npm run test
+
+      - name: Build Application
+        run: npm run dev-build || npm run build
