@@ -12,7 +12,10 @@ resource "aws_s3_bucket" "kyc_storage" {
   force_destroy = true
 
   tags = {
-    Name = "factopay-${var.environment}-kyc-storage"
+    Name        = "factopay-${var.environment}-kyc-storage"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 

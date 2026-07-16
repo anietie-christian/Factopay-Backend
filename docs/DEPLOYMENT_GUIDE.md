@@ -20,7 +20,7 @@ graph TD
 ### Key Technical Details:
 * **Twin Engines:** `api_blue` (Host Port `3000`) and `api_green` (Host Port `3001`) run identical copies of the NestJS application.
 * **Shared State (Redis):** A single background container (`factopay_redis`) acts as the state broker for both Blue and Green instances. Active user logins, rate-limit buckets, and idempotency lock mappings are preserved 100% intact across deployments, ensuring **zero forced logouts** or lost webhook events when pushing code.
-* **Nginx Router:** A host-level Nginx proxy receives public HTTPS traffic (via Cloudflare) and forwards it to the active container's port.
+* **Nginx Router:** A host-level Nginx proxy receives public HTTPS traffic (via Amazon CloudFront) and forwards it to the active container's port.
 
 ---
 

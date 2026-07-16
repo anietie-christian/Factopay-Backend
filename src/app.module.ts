@@ -14,6 +14,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuditComplianceModule } from './modules/audit-compliance/audit-compliance.module';
 import { secretsLoader } from './config/secrets.loader';
+import { RewardsPointsModule } from './modules/rewards-points/rewards-points.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { secretsLoader } from './config/secrets.loader';
     NotificationModule,
     AuditModule,
     AuditComplianceModule,
+    RewardsPointsModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [],

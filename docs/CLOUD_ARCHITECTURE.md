@@ -10,10 +10,10 @@
 ```
 [ Internet Traffic ]
         │
-        ▼ (Free SSL / WAF)
-  [ Cloudflare ] (DNS, Edge Caching, CDN)
+        ▼ (Route 53 DNS & AWS WAF)
+  [ CloudFront CDN ] (SSL/TLS Termination, Edge Caching)
         │
-        ▼ (Port 80/443 - Restricted to Cloudflare IPs)
+        ▼ (Port 80/443 - Restricted to CloudFront IP Prefix List)
 ┌─────────────────────────── AWS VPC ───────────────────────────┐
 │                                                               │
 │   ┌────────────────── Public Subnet ──────────────────────┐   │
@@ -31,7 +31,7 @@
 │   │   │                                                  │ │   │
 │   │   └──────────────────────────────────────────────────┘ │   │
 │   │                                                       │   │
-│   └──────────────────────────┬────────────────────────────┘   │
+│   ├──────────────────────────┬────────────────────────────┘   │
 │                              │ (Port 5432 - Secured)          │
 │                              ▼                                │
 │   ┌────────────────── Private Subnet ─────────────────────┐   │
@@ -53,7 +53,7 @@ To achieve production-grade performance while maintaining a **sub-$30/month budg
 ### 2.1 Compute: AWS EC2 (t3.micro ARM64/x86)
 - **Selection:** Run the application on a single AWS EC2 `t3.micro` instance (2 vCPUs, 1 GB RAM).
 - **Cost:** ~$7.00 / month.
-- **Optimization:** We do **not** use an AWS Application Load Balancer (ALB), which adds a ~$16/month baseline charge. Instead, incoming web traffic (port 80/443) goes directly to a containerized Nginx instance on the EC2 host.
+- **Optimization:** We do **not** use an AWS Application Load Balancer (ALB) in the MVP setup to save costs. Instead, incoming web traffic is proxy-routed through Amazon CloudFront directly to a containerized Nginx instance on the EC2 host.
 
 ### 2.2 Load Balancing & Zero-Downtime: Host-Level Nginx
 - **Mechanism:** A local Nginx Docker container acts as a reverse proxy on the host. It balances traffic between two parallel API containers: `api_blue` (port 3000) and `api_green` (port 3001).
@@ -67,8 +67,8 @@ To achieve production-grade performance while maintaining a **sub-$30/month budg
 
 ### 2.3 Cache & Message Queue: Co-located Redis
 - **Selection:** Runs a local `redis:7-alpine` Docker container on the same EC2 instance.
-- **Latency Advantage:** Both the active API container and the Redis container run on the same virtual network bridge. Redis lookups for FX quote locks, idempotency checks, and BullMQ background queues resolve in **under 1 millisecond** (compared to 10-15ms for external serverless Redis).
-- **Session Preservation:** During Blue-Green swaps, the Redis container is **never** stopped. State remains intact, ensuring zero logged-out sessions or lost webhook events during deployments.
+- **Latency Advantage:** Both the active API container and the Redis container run on the same virtual network bridge. Redis lookups resolve in **under 1 millisecond**.
+- **Session Preservation:** During Blue-Green swaps, the Redis container is **never** stopped, ensuring zero logged-out sessions or lost webhook events.
 - **Cost:** **$0.00** (saves ~$15/month relative to AWS ElastiCache).
 
 ### 2.4 Database: Amazon RDS PostgreSQL (Graviton2)
@@ -76,21 +76,17 @@ To achieve production-grade performance while maintaining a **sub-$30/month budg
 - **Cost:** ~$15.00 / month.
 - **Optimization:** Multi-AZ deployment is disabled for early MVP. Daily automated snapshots are retained for 7 days to provide recovery points.
 
-### 2.5 Networking: The NAT Gateway Bypass
-- **Problem:** Placed in private subnets, servers require NAT Gateways to make outgoing internet requests (e.g. communicating with Stellar endpoints or Sumsub verification SDKs). NAT Gateways cost **$32/month** each.
-- **Solution:** Place the EC2 instance in a **Public Subnet**, but lock down its security group:
-  - Ingress on port 80/443 is **restricted strictly to Cloudflare's public IP ranges**.
-  - Ingress on port 22 (SSH) is limited to admin/developer IP addresses.
-  - The database remains isolated in a **Private Subnet** and accepts connections *only* from the EC2 instance's security group.
-  - **Result:** $0/month networking charges while maintaining a strict firewall perimeter.
+### 2.5 Networking: CloudFront Security Group Restriction
+- **Security**: The EC2 instance security group ingress rule on port 80/443 is **restricted strictly to the AWS CloudFront Origin-Facing Managed Prefix List**.
+- **Result**: Prevents direct scanner ingress to the EC2 server and ensures all traffic is filtered by CloudFront and AWS WAF before hitting our server, costing $0/month while maintaining a highly secure firewall perimeter.
 
 ---
 
 ## 3. Storage & Static Assets
 
-- **S3 Standard Storage:** Used for KYC document uploads and transaction receipts.
-- **Security:** Bucket access is configured with **Block Public Access**. Assets are accessed securely using short-lived **Presigned URLs** (15-minute expiry).
-- **Cost:** ~$1.00 / month (pay-as-you-go).
+- **S3 Standard Storage**: Used for KYC document uploads and transaction receipts.
+- **Security**: Bucket access is configured with **Block Public Access**. Assets are accessed securely using short-lived **Presigned URLs** (15-minute expiry).
+- **Cost**: ~$1.00 / month (pay-as-you-go).
 
 ---
 
@@ -98,26 +94,27 @@ To achieve production-grade performance while maintaining a **sub-$30/month budg
 
 | Service | Choice | Rationale | Cost |
 |---|---|---|---|
-| **SSL Certificates** | Cloudflare SSL | Automated, free SSL edge encryption | $0.00 |
+| **SSL Certificates** | AWS Certificate Manager (ACM) | Automated, free SSL edge encryption via CloudFront | $0.00 |
 | **Secrets Storage** | AWS Systems Manager Parameter Store | Free alternative to AWS Secrets Manager ($0.40/secret/mo) | $0.00 |
-| **WAF / DDoS Protection** | Cloudflare Free Tier | Prevents SQL injections, rate-limits bad actors at the edge | $0.00 |
+| **WAF / DDoS Protection** | AWS WAF & AWS Shield (Standard) | Protects CloudFront distribution from SQL injections and DDoS | $0.00 (Shield Standard is free; WAF is pay-as-you-go) |
 | **Database Encryption** | AWS KMS Default Keys | Encrypts RDS volumes at rest | $0.00 |
 
 ---
 
 ## 5. Total Cost Estimation (MVP Launch)
 
-| Component | Hourly Rate | Estimated Monthly Cost |
+| Component | Hourly Rate / Plan | Estimated Monthly Cost |
 |---|---|---|
 | **EC2 t3.micro Compute** | $0.010 | ~$7.00 |
 | **RDS PostgreSQL (db.t4g.micro, gp3)** | $0.021 | ~$15.00 |
 | **Co-located Redis Container** | Local | $0.00 |
 | **Nginx Reverse Proxy Container** | Local | $0.00 |
 | **Amazon S3 Storage** | Pay-as-you-go | ~$1.00 |
-| **Cloudflare DNS + SSL + Proxy** | Free Tier | $0.00 |
+| **AWS CloudFront + ACM** | Free Tier | $0.00 |
+| **AWS Shield + AWS WAF** | Pay-as-you-go | ~$3.00 |
 | **AWS KMS & SSM Parameter Store** | Free Tiers | $0.00 |
 | **Data Transfer Fees** | ~$0.09 / GB | ~$2.00 |
-| **TOTAL ESTIMATED BUDGET** | — | **~$25.00 / Month** |
+| **TOTAL ESTIMATED BUDGET** | — | **~$28.00 / Month** |
 
 ---
 
@@ -150,7 +147,7 @@ The architecture is designed to scale linearly as user traffic and transaction v
              [ Public Internet ]
                       │
                       ▼
-               [ Cloudflare ]
+        [ AWS Route 53 / CloudFront ]
                       │
                       ▼
         [ AWS Application Load Balancer ]
@@ -206,7 +203,7 @@ This section outlines the step-by-step procedure to migrate the FactoPay backend
 1. **Private Subnet Provisioning**: Ensure your VPC has at least two private subnets across two different Availability Zones (AZs) for compute workloads, and two public subnets for the load balancer.
 2. **NAT Gateway (or NAT Instance)**: Deploy a NAT Gateway in a public subnet to allow ECS Fargate tasks in the private subnets to download dependencies, access the Stellar Network, and reach external services (Flutterwave, Sumsub, Twilio).
 3. **Security Groups Configuration**:
-   * **ALB Security Group**: Allow ingress on `80/443` from Cloudflare IP addresses.
+    * **ALB Security Group**: Allow ingress on `80/443` from CloudFront IP addresses (using the managed prefix list).
    * **ECS Tasks Security Group**: Allow ingress on port `3000` (API) strictly from the ALB Security Group. Allow all egress.
    * **RDS Security Group**: Add an ingress rule allowing port `5432` from the ECS Tasks Security Group.
    * **ElastiCache Security Group**: Allow ingress on port `6379` strictly from the ECS Tasks Security Group.
@@ -267,7 +264,7 @@ This section outlines the step-by-step procedure to migrate the FactoPay backend
    * **Type**: Application Load Balancer.
    * **Scheme**: Internet-facing.
    * **Subnets**: Select the public subnets.
-   * **Security Group**: ALB Security Group (Cloudflare locked).
+    * **Security Group**: ALB Security Group (CloudFront locked).
 2. **Target Group Creation**:
    * **Target Type**: IP (required for Fargate).
    * **Protocol / Port**: HTTP / 3000.
@@ -279,7 +276,7 @@ This section outlines the step-by-step procedure to migrate the FactoPay backend
 ### Step 6: Cutover and DNS Transition (Zero-Downtime)
 1. **Warm Up**: Ensure the ECS tasks boot cleanly, connect successfully to RDS and ElastiCache, and pass ALB health checks.
 2. **Double Write/Dual-State (Optional)**: If active sessions are cached in local EC2 Redis, users will have to re-login unless you run the old and new clusters simultaneously. Wait 10 minutes for any running background tasks on the EC2 host to finish.
-3. **DNS Update**: Update your CNAME record in Cloudflare:
+3. **DNS Update**: Update your Alias record in AWS Route 53:
    * Point your backend API subdomain (e.g., `api.factopay.com`) from the EC2 Elastic IP address to the **AWS ALB DNS Name**.
 4. **Monitoring**: Watch the RDS connection count, ALB HTTP status logs, and error telemetry (Sentry/CloudWatch) to ensure traffic flows smoothly to ECS.
 5. **Teardown**: Once traffic is 100% routed through the ALB and ECS Fargate cluster, stop and terminate the old EC2 instance.

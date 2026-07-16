@@ -1,10 +1,17 @@
+data "aws_ec2_managed_prefix_list" "cloudfront" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
 resource "aws_vpc" "factopay_vpc" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
 
   tags = {
-    Name = "factopay-${var.environment}-vpc"
+    Name        = "factopay-${var.environment}-vpc"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -12,7 +19,10 @@ resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.factopay_vpc.id
 
   tags = {
-    Name = "factopay-${var.environment}-igw"
+    Name        = "factopay-${var.environment}-igw"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -22,7 +32,10 @@ resource "aws_subnet" "public_1" {
   availability_zone = "${var.aws_region}a"
 
   tags = {
-    Name = "factopay-${var.environment}-public-1"
+    Name        = "factopay-${var.environment}-public-1"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -32,7 +45,10 @@ resource "aws_subnet" "private_1" {
   availability_zone = "${var.aws_region}a"
 
   tags = {
-    Name = "factopay-${var.environment}-private-1"
+    Name        = "factopay-${var.environment}-private-1"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -42,7 +58,10 @@ resource "aws_subnet" "private_2" {
   availability_zone = "${var.aws_region}b"
 
   tags = {
-    Name = "factopay-${var.environment}-private-2"
+    Name        = "factopay-${var.environment}-private-2"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -55,7 +74,10 @@ resource "aws_route_table" "public_rt" {
   }
 
   tags = {
-    Name = "factopay-${var.environment}-public-rt"
+    Name        = "factopay-${var.environment}-public-rt"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -72,31 +94,19 @@ resource "aws_security_group" "ec2_sg" {
   description = "Access rules for FactoPay EC2 instance"
   vpc_id      = aws_vpc.factopay_vpc.id
 
-  # Inbound HTTP/HTTPS restricted to Cloudflare IPv4 Ranges
+  # Inbound HTTP/HTTPS restricted to CloudFront Origin-Facing Managed Prefix List
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [
-      "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", 
-      "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18", 
-      "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", 
-      "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", 
-      "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22"
-    ]
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
   }
 
   ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [
-      "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", 
-      "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18", 
-      "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", 
-      "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", 
-      "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22"
-    ]
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
   }
 
   # Inbound SSH restricted to Administrator IP
@@ -116,7 +126,10 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   tags = {
-    Name = "factopay-${var.environment}-ec2-sg"
+    Name        = "factopay-${var.environment}-ec2-sg"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -141,7 +154,10 @@ resource "aws_security_group" "db_sg" {
   }
 
   tags = {
-    Name = "factopay-${var.environment}-db-sg"
+    Name        = "factopay-${var.environment}-db-sg"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 

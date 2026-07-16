@@ -25,13 +25,13 @@ module "registry" {
 }
 
 module "database" {
-  source          = "./modules/database"
-  create_database = var.create_database
-  db_subnet_ids   = module.networking.private_subnet_ids
+  source            = "./modules/database"
+  create_database   = var.create_database
+  db_subnet_ids     = module.networking.private_subnet_ids
   security_group_id = module.networking.db_sg_id
-  db_username     = var.db_username
-  db_password     = var.db_password
-  environment     = var.environment
+  db_username       = var.db_username
+  db_password       = var.db_password
+  environment       = var.environment
 }
 
 module "storage" {

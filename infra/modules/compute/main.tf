@@ -19,11 +19,11 @@ variable "environment" {
 }
 
 resource "aws_instance" "app_server" {
-  ami                  = "ami-0b72821e2f35de57e" # Standard Amazon Linux 2023 AMI for us-east-1 (x86_64)
-  instance_type        = var.instance_type
-  subnet_id            = var.subnet_id
+  ami                    = "ami-0b72821e2f35de57e" # Standard Amazon Linux 2023 AMI for us-east-1 (x86_64)
+  instance_type          = var.instance_type
+  subnet_id              = var.subnet_id
   vpc_security_group_ids = [var.security_group_id]
-  iam_instance_profile = var.iam_instance_profile
+  iam_instance_profile   = var.iam_instance_profile
 
   user_data = <<-EOF
               #!/bin/bash
@@ -39,7 +39,10 @@ resource "aws_instance" "app_server" {
               EOF
 
   tags = {
-    Name = "factopay-${var.environment}-api-host"
+    Name        = "factopay-${var.environment}-api-host"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -48,7 +51,10 @@ resource "aws_eip" "app_eip" {
   domain   = "vpc"
 
   tags = {
-    Name = "factopay-${var.environment}-eip"
+    Name        = "factopay-${var.environment}-eip"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 

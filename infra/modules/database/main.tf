@@ -30,7 +30,10 @@ resource "aws_db_subnet_group" "db_subnets" {
   subnet_ids = var.db_subnet_ids
 
   tags = {
-    Name = "factopay-${var.environment}-db-subnet-group"
+    Name        = "factopay-${var.environment}-db-subnet-group"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -51,7 +54,10 @@ resource "aws_db_instance" "postgres" {
   publicly_accessible    = false
 
   tags = {
-    Name = "factopay-${var.environment}-db"
+    Name        = "factopay-${var.environment}-db"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 

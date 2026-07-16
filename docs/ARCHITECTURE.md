@@ -455,7 +455,7 @@ All endpoints versioned under `/api/v1/`. Transfer endpoints require `Idempotenc
 | **Data in Transit** | TLS 1.3, HSTS enforced |
 | **Data at Rest** | AES-256 encryption for all PII and financial data |
 | **Authentication** | JWT + refresh token rotation, biometric + PIN 2FA |
-| **API Protection** | Rate limiting (100 req/min), DDoS via CloudFlare |
+| **API Protection** | Rate limiting (100 req/min), DDoS via Route 53, CloudFront & AWS WAF |
 | **Fraud Detection** | ML-based anomaly detection, Sardine.ai scoring |
 | **Session Security** | IP binding, device fingerprinting, suspicious login alerts |
 | **Gateway Security** | IP whitelisting + HMAC signature for partner API calls |

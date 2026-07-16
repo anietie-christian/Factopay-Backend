@@ -10,7 +10,10 @@ resource "aws_ecr_repository" "api_repo" {
   }
 
   tags = {
-    Name = "factopay-api-repo"
+    Name        = "factopay-api-repo"
+    Environment = var.environment
+    Project     = "FactoPay"
+    ManagedBy   = "Terraform"
   }
 }
 

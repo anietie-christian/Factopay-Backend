@@ -18,6 +18,18 @@ describe('Notification Service (Integration)', () => {
   });
 
   it('should fail-closed if API keys are missing', async () => {
+    const oldSid = process.env.TWILIO_ACCOUNT_SID;
+    const oldToken = process.env.TWILIO_AUTH_TOKEN;
+    const oldFrom = process.env.TWILIO_FROM_NUMBER;
+    const oldSgKey = process.env.SENDGRID_API_KEY;
+    const oldSgFrom = process.env.SENDGRID_FROM_EMAIL;
+
+    delete process.env.TWILIO_ACCOUNT_SID;
+    delete process.env.TWILIO_AUTH_TOKEN;
+    delete process.env.TWILIO_FROM_NUMBER;
+    delete process.env.SENDGRID_API_KEY;
+    delete process.env.SENDGRID_FROM_EMAIL;
+
     try {
       module = await Test.createTestingModule({
         imports: [
@@ -32,11 +44,19 @@ describe('Notification Service (Integration)', () => {
         .overrideProvider(PrismaService)
         .useValue({})
         .compile();
+
+      module.get(SMS_GATEWAY_TOKEN);
       
-      fail('Expected module to throw initialization error due to missing API keys');
+      throw new Error('Expected module to throw initialization error due to missing API keys');
     } catch (error) {
       expect(error.message).toMatch(/Twilio configuration is missing|SendGrid configuration is missing/);
       console.log('--- TEST: Successfully failed-closed on missing keys:', error.message);
+    } finally {
+      process.env.TWILIO_ACCOUNT_SID = oldSid;
+      process.env.TWILIO_AUTH_TOKEN = oldToken;
+      process.env.TWILIO_FROM_NUMBER = oldFrom;
+      process.env.SENDGRID_API_KEY = oldSgKey;
+      process.env.SENDGRID_FROM_EMAIL = oldSgFrom;
     }
   });
 

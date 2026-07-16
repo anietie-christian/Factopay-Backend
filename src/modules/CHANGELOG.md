@@ -9,15 +9,17 @@ This file tracks the ownership, development status, and recent changes of each b
 | `auth-identity` | User registration, login, OTP, JWT, Passport strategy | **Oscar** | Completed |
 | `kyc-management` | KYC state machine, document uploads, Sumsub mocks | **Oscar** | Completed |
 | `blockchain-settlement` | Stellar SDK wrapper, on-chain transactions, testnet ops | **Oscar** | Completed |
-| `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | Pending |
-| `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Christian** | Pending |
+| `audit-compliance` | Global audit interceptor, compliance checks | **Oscar** | Completed |
+| `wallet-ledger` | Double-entry engine, wallet provisioning, balance derivation | **Christian** | Completed |
 | `transfer-engine` | FX rate locking, transfer orchestration | **Christian** | Completed |
 | `gateway-integrations` | Webhook verification (Flutterwave, Transak) | **Christian** | Completed |
+| `rewards-points` | Loyalty points, tier calculations, concurrency redemptions, expiry sweeps | **Christian/Oscar** | Completed |
 | `shared` | Exceptions, value objects, global middleware, guards, idempotency | **Christian** | Completed |
 
 ---
 
 ## Recent Changes
+- **rewards-points (Loyalty Engine Integration):** Oscar implemented and registered the Rewards & Points Engine module to award loyalty points for completed transfers, calculate tiers dynamically, handle point redemptions with PostgreSQL row-level locks, and sweep expired points. Integrated it into `AppModule` and validated all integration flows.
 - **blockchain-settlement (Edge Cases & Concurrency):** Oscar implemented a 20% network fee buffer for Stellar gas spikes, a 3-attempt exponential backoff retry loop for resilient ledger submissions, a Redis-backed `WalletLockManager` to resolve concurrency/sequence number collisions, and fully documented the context in `docs/BLOCKCHAIN_SETTLEMENT.md`.
 - **shared (Type Fixes):** Oscar fixed compilation errors by exporting the `CurrencyCode` type alias from `currency.vo.ts`.
 - **infrastructure (Docker):** Oscar optimized `.dockerignore` using recursive exclusions (shrinking build context from 720MB to <5MB) and created a database seeder (`prisma/seed.ts`) with a cascade-truncation routine to populate test users and transaction histories.
