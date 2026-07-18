@@ -56,3 +56,15 @@ export class AdminCancelTransferDto {
   @IsString()
   reason: string;
 }
+
+export class AdminRetryTransferDto {
+  @ApiProperty({ description: 'Notes justifying the retry', example: 'Network issue resolved.' })
+  @IsString()
+  notes: string;
+}
+
+export class AdminRefundTransferDto {
+  @ApiProperty({ description: 'Reason for refund', example: 'User requested refund after failed transaction.' })
+  @IsString()
+  reason: string;
+}

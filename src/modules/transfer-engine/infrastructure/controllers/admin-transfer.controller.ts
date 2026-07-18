@@ -19,11 +19,15 @@ import { AdminListTransfersUseCase } from '../../application/use-cases/admin-lis
 import { AdminReviewTransferUseCase } from '../../application/use-cases/admin-review-transfer.use-case';
 import { AdminCancelTransferUseCase } from '../../application/use-cases/admin-cancel-transfer.use-case';
 import { AdminResolveTransferUseCase } from '../../application/use-cases/admin-resolve-transfer.use-case';
+import { AdminRetryTransferUseCase } from '../../application/use-cases/admin-retry-transfer.use-case';
+import { AdminRefundTransferUseCase } from '../../application/use-cases/admin-refund-transfer.use-case';
 import {
   AdminListTransfersQueryDto,
   AdminReviewTransferDto,
   AdminCancelTransferDto,
   AdminResolveTransferDto,
+  AdminRetryTransferDto,
+  AdminRefundTransferDto,
 } from '../../application/dtos/admin-transfer.dto';
 
 @ApiTags('Admin - Transfers')
@@ -36,6 +40,8 @@ export class AdminTransferController {
     private readonly reviewTransferUseCase: AdminReviewTransferUseCase,
     private readonly cancelTransferUseCase: AdminCancelTransferUseCase,
     private readonly resolveTransferUseCase: AdminResolveTransferUseCase,
+    private readonly retryTransferUseCase: AdminRetryTransferUseCase,
+    private readonly refundTransferUseCase: AdminRefundTransferUseCase,
   ) {}
 
   @Get()
@@ -103,6 +109,46 @@ export class AdminTransferController {
       transferId: id,
       adminId,
       notes: dto.notes,
+      ipAddress,
+    });
+  }
+
+  @Post(':id/retry')
+  @Roles('ADMIN', 'SUPERADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry a failed transfer' })
+  @ApiResponse({ status: 200, description: 'Transfer status set to PENDING and enqueued for retry' })
+  async retryTransfer(
+    @Param('id') id: string,
+    @Body() dto: AdminRetryTransferDto,
+    @Req() req: any,
+    @Ip() ipAddress: string,
+  ) {
+    const adminId = req.user.id;
+    return this.retryTransferUseCase.execute({
+      transferId: id,
+      adminId,
+      notes: dto.notes,
+      ipAddress,
+    });
+  }
+
+  @Post(':id/refund')
+  @Roles('ADMIN', 'SUPERADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refund a failed or stuck transfer to user wallet' })
+  @ApiResponse({ status: 200, description: 'Transfer refunded successfully' })
+  async refundTransfer(
+    @Param('id') id: string,
+    @Body() dto: AdminRefundTransferDto,
+    @Req() req: any,
+    @Ip() ipAddress: string,
+  ) {
+    const adminId = req.user.id;
+    return this.refundTransferUseCase.execute({
+      transferId: id,
+      adminId,
+      reason: dto.reason,
       ipAddress,
     });
   }
