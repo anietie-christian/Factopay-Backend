@@ -6,6 +6,7 @@ import { InitiateTransferUseCase } from '../../application/use-cases/initiate-tr
 import { GetTransferUseCase } from '../../application/use-cases/get-transfer.use-case';
 import { GetTransferByKeyUseCase } from '../../application/use-cases/get-transfer-by-key.use-case';
 import { ListTransfersUseCase } from '../../application/use-cases/list-transfers.use-case';
+import { UserCancelTransferUseCase } from '../../application/use-cases/user-cancel-transfer.use-case';
 import { InitiateTransferDto } from '../../application/dtos/initiate-transfer.dto';
 import { ListTransfersQueryDto } from '../../application/dtos/list-transfers-query.dto';
 import { ApiTags, ApiOperation, ApiHeader, ApiBearerAuth, ApiParam, ApiResponse } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ export class TransferController {
     private readonly getTransferUseCase: GetTransferUseCase,
     private readonly getTransferByKeyUseCase: GetTransferByKeyUseCase,
     private readonly listTransfersUseCase: ListTransfersUseCase,
+    private readonly userCancelTransferUseCase: UserCancelTransferUseCase,
   ) {}
 
   @Post()
@@ -62,6 +64,19 @@ export class TransferController {
     return this.getTransferByKeyUseCase.execute(req.user.id, idempotencyKey);
   }
 
+  @Get(':id/status')
+  @ApiOperation({ summary: 'Poll transfer status' })
+  @ApiParam({ name: 'id', description: 'Transfer UUID' })
+  @ApiResponse({ status: 200, description: 'Transfer status retrieved' })
+  @ApiResponse({ status: 404, description: 'Transfer not found' })
+  async getStatus(
+    @Req() req: any,
+    @Param('id') id: string,
+  ) {
+    const transfer = await this.getTransferUseCase.execute(req.user.id, id);
+    return { status: transfer.status };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get transfer by ID' })
   @ApiParam({ name: 'id', description: 'Transfer UUID' })
@@ -72,5 +87,18 @@ export class TransferController {
     @Param('id') id: string,
   ) {
     return this.getTransferUseCase.execute(req.user.id, id);
+  }
+
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel a pending transfer' })
+  @ApiParam({ name: 'id', description: 'Transfer UUID' })
+  @ApiResponse({ status: 200, description: 'Transfer cancelled successfully' })
+  @ApiResponse({ status: 400, description: 'Transfer cannot be cancelled' })
+  @ApiResponse({ status: 404, description: 'Transfer not found' })
+  async cancelTransfer(
+    @Req() req: any,
+    @Param('id') id: string,
+  ) {
+    return this.userCancelTransferUseCase.execute(req.user.id, id);
   }
 }
