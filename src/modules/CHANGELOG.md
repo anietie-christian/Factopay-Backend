@@ -19,6 +19,13 @@ This file tracks the ownership, development status, and recent changes of each b
 ---
 
 ## Recent Changes
+- **test-infrastructure (Local Docker):** Christian migrated the Jest test suite to use local `docker-compose` (Postgres & Redis) instead of the remote Neon database, eliminating 60s test timeouts and hanging processes. Test suite runs all 225 tests in ~5 seconds.
+- **database (Schema Drift):** Christian generated the `20260718163000_sync_schema_drift` migration to safely sync unapplied schema drift (e.g., `users.status`) across environments and unblock local `prisma migrate deploy`.
+- **wallet-ledger (DB Immutability):** Christian replaced application-level immutability logic with hard PostgreSQL Database `TRIGGERS` that actively `RAISE EXCEPTION` on any `UPDATE` or `DELETE` against `ledger_entries` and `ledger_accounts`.
+- **transfer-engine (Admin API):** Christian implemented `POST /admin/transfers/:id/retry` and `POST /admin/transfers/:id/refund` to allow admins to resolve stuck transactions.
+- **auth-identity (Session Revocation):** Christian implemented `POST /logout` and `POST /logout-all`, utilizing atomic transactions to securely revoke refresh tokens and sessions.
+- **gateway-integrations (Workers):** Christian re-enabled `ScheduleModule` and the background CRON jobs for Webhook and Blockchain transaction reconciliation.
+- **audit-compliance (Consolidation):** Christian removed the redundant `audit-compliance` module, consolidating its logic into a single streamlined `audit` module interceptor.
 - **rewards-points (Loyalty Engine Integration):** Oscar implemented and registered the Rewards & Points Engine module to award loyalty points for completed transfers, calculate tiers dynamically, handle point redemptions with PostgreSQL row-level locks, and sweep expired points. Integrated it into `AppModule` and validated all integration flows.
 - **production readiness (Security/Config):** Christian removed hardcoded secret fallbacks, added required env validation, created `.env.example`, re-enabled Helmet CSP, added body limits, and disabled Swagger by default in production.
 - **auth-identity (Refresh Sessions):** Christian introduced database-backed refresh-token sessions with `jti`, hashed refresh-token storage, single-use rotation, reuse detection, and focused test coverage.
@@ -57,6 +64,14 @@ The integration requests to support the end-to-end integration of the completed 
 ---
 
 ## Change Log
+### July 18, 2026
+- **Local Test Infrastructure Migration:** Migrated the Jest test suite from the remote shared Neon database to a local `docker-compose` setup with Postgres 15 and Redis 7. This eliminated network-induced 60s timeouts, resolved hanging worker process issues ("worker process failed to exit gracefully"), and reduced the test execution time from ~180s to ~5s for all 225 tests.
+- **Schema Drift Reconciliation:** Addressed the schema drift between the Prisma codebase and the remote database by generating a new migration (`20260718163000_sync_schema_drift`) via `prisma migrate diff`. This ensures `prisma migrate deploy` successfully creates all necessary columns (like `users.status`) for test execution without breaking remote state.
+- **Hard Ledger Immutability:** Deprecated the application-level logic enforcement and implemented strict PostgreSQL database `TRIGGERS` across `ledger_entries` and `ledger_accounts` to `RAISE EXCEPTION` on any `UPDATE` or `DELETE`, achieving absolute cryptographically-sound immutability.
+- **Admin Transfers API:** Implemented operational endpoints `POST /admin/transfers/:id/retry` and `POST /admin/transfers/:id/refund` to allow the platform administration to rescue and resolve stuck or failed user transfers.
+- **Session Revocation (Logout):** Finalized the Auth module with `POST /logout` and `POST /logout-all` implementations. Utilized Prisma atomic transactions to securely revoke sessions and refresh tokens, terminating the user's active session state.
+- **Workers & Audit Consolidation:** Re-activated the `ScheduleModule` to initialize the periodic background jobs for webhook (`WebhookReconciliationWorker`) and blockchain (`BlockchainReconciliationWorker`) reconciliation. Cleaned up the codebase by removing the legacy `audit-compliance` module and migrating all auditing logic into a single interceptor in the primary `audit` module.
+
 
 ### July 12, 2026
 - **Blockchain Settlement Edge Cases & Safety**: Oscar integrated network fee buffers (20% above base fee), a robust retry loop (3 retry attempts with exponential backoff), and built a Redis-backed concurrency locker (`WalletLockManager`) to prevent sequence number collisions during concurrent settlements.
