@@ -10,6 +10,7 @@ import { TransakWebhookController } from '../infrastructure/controllers/transak-
 import { TransakSignatureMiddleware } from '../infrastructure/middleware/transak-signature.middleware';
 
 import { RecordWebhookEventUseCase } from '../application/use-cases/record-webhook-event.use-case';
+import { RedisService } from '../../shared/infrastructure/cache/redis.service';
 
 describe('Transak Webhook (e2e)', () => {
   let app: INestApplication;
@@ -28,6 +29,12 @@ describe('Transak Webhook (e2e)', () => {
           useValue: {
             execute: jest.fn().mockResolvedValue({ isDuplicate: false, status: 'RECEIVED' }),
             updateStatus: jest.fn().mockResolvedValue({}),
+          },
+        },
+        {
+          provide: RedisService,
+          useValue: {
+            setNxWithExpiry: jest.fn().mockResolvedValue(true),
           },
         },
       ],
@@ -85,5 +92,24 @@ describe('Transak Webhook (e2e)', () => {
     
     expect(res.status).toBe(201);
     expect(res.body.received).toBe(true);
+  });
+
+  it('should reject duplicate replay webhook', async () => {
+    const redisService = app.get(RedisService);
+    jest.spyOn(redisService, 'setNxWithExpiry').mockResolvedValueOnce(false);
+
+    const payload = { eventID: 'duplicate_event_123', status: 'COMPLETED' };
+    const signature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const res = await req(app.getHttpServer())
+      .post('/webhooks/transak')
+      .set('x-transak-signature', signature)
+      .send(payload);
+    
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('Duplicate webhook received');
   });
 });
