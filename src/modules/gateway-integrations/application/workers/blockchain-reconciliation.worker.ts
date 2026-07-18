@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-// import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { VerifySettlementUseCase } from '../../../blockchain-settlement/application/use-cases/verify-settlement.use-case';
 import { ReverseLedgerTransactionUseCase } from '../../../wallet-ledger/application/use-cases/reverse-ledger-transaction.use-case';
@@ -16,7 +16,7 @@ export class BlockchainReconciliationWorker {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  // @Cron('*/5 * * * *')
+  @Cron('*/5 * * * *')
   async reconcileTransactions() {
     this.logger.log('Starting Blockchain reconciliation job...');
 
