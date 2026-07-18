@@ -8,7 +8,7 @@ import { PrismaLedgerRepository } from './infrastructure/repositories/prisma-led
 import { DoubleEntryEngine } from './domain/services/double-entry.engine';
 import { KycApprovedListener } from './infrastructure/listeners/kyc-approved.listener';
 import { WalletController } from './infrastructure/controllers/wallet.controller';
-import { LedgerImmutabilityEnforcer } from './infrastructure/services/ledger-immutability-enforcer.service';
+
 import { SharedModule } from '../shared/shared.module';
 
 @Module({
@@ -25,7 +25,7 @@ import { SharedModule } from '../shared/shared.module';
     PostLedgerTransactionUseCase,
     ReverseLedgerTransactionUseCase,
     KycApprovedListener,
-    LedgerImmutabilityEnforcer,
+
   ],
   exports: [
     PostLedgerTransactionUseCase,

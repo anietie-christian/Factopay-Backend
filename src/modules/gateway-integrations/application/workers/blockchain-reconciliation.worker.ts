@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+// import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { VerifySettlementUseCase } from '../../../blockchain-settlement/application/use-cases/verify-settlement.use-case';
 import { ReverseLedgerTransactionUseCase } from '../../../wallet-ledger/application/use-cases/reverse-ledger-transaction.use-case';
@@ -16,7 +16,7 @@ export class BlockchainReconciliationWorker {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  // @Cron('*/5 * * * *')
   async reconcileTransactions() {
     this.logger.log('Starting Blockchain reconciliation job...');
 
@@ -47,12 +47,15 @@ export class BlockchainReconciliationWorker {
             where: { id: tx.transferId },
             data: { status: 'COMPLETED' },
           });
+          await this.prisma.transferEvent.create({
+            data: { transferId: tx.transferId, status: 'COMPLETED', metadata: { message: 'Blockchain reconciliation successful' } }
+          });
 
           this.eventEmitter.emit('transfer.completed', {
             transferId: transfer.id,
             userId: transfer.userId,
             amount: transfer.amount.toString(),
-            currency: transfer.currency,
+            currency: transfer.sourceCurrency,
             recipientId: transfer.recipientId || '',
           });
 
@@ -70,12 +73,15 @@ export class BlockchainReconciliationWorker {
             where: { id: tx.transferId },
             data: { status: 'FAILED' },
           });
+          await this.prisma.transferEvent.create({
+            data: { transferId: tx.transferId, status: 'FAILED', metadata: { message: 'Blockchain reconciliation failed', error: updatedTx.errorMessage } }
+          });
 
           this.eventEmitter.emit('transfer.failed', {
             transferId: transfer.id,
             userId: transfer.userId,
             amount: transfer.amount.toString(),
-            currency: transfer.currency,
+            currency: transfer.sourceCurrency,
             recipientId: transfer.recipientId || '',
             failureReason: updatedTx.errorMessage || 'Blockchain settlement failed',
           });

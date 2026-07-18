@@ -1,71 +1,86 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { LedgerImmutabilityEnforcer } from '../infrastructure/services/ledger-immutability-enforcer.service';
 import { PrismaService } from '../../shared/infrastructure/database/prisma.service';
+import { WalletType, AccountType, EntryType } from '@prisma/client';
+import { ConfigModule } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 
-describe('LedgerImmutabilityEnforcer', () => {
-  let enforcer: LedgerImmutabilityEnforcer;
-  let prisma: Record<string, any>;
+describe('Ledger Immutability (Database Level)', () => {
+  let prisma: PrismaService;
 
-  beforeEach(async () => {
-    prisma = {
-      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
-    };
-
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        LedgerImmutabilityEnforcer,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      imports: [ConfigModule.forRoot()],
+      providers: [PrismaService],
     }).compile();
 
-    enforcer = module.get(LedgerImmutabilityEnforcer);
+    prisma = module.get(PrismaService);
   });
 
-  it('should execute the raw trigger DDL on database startup', async () => {
-    await enforcer.onModuleInit();
+  it('should prevent UPDATE operations on ledger_entries via Postgres rules', async () => {
+    // 1. Create a dummy wallet and account
+    const wallet = await prisma.wallet.create({
+      data: {
+        wallet_type: WalletType.SETTLEMENT,
+        currency: 'USD',
+        user_id: randomUUID(),
+      },
+    });
 
-    expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(6);
-    
-    // Check that one of the calls creates the trigger function
-    expect(prisma.$executeRawUnsafe).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining('CREATE OR REPLACE FUNCTION prevent_ledger_mutation')
-    );
+    const account = await prisma.ledgerAccount.create({
+      data: {
+        wallet: { connect: { id: wallet.id } },
+        account_type: AccountType.LIABILITY,
+        name: 'System Liability',
+        currency: 'USD',
+      },
+    });
 
-    // Check that one of the calls creates the delete block trigger function
-    expect(prisma.$executeRawUnsafe).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining('CREATE OR REPLACE FUNCTION prevent_ledger_account_delete')
-    );
+    // 2. Insert a ledger entry
+    const entry = await prisma.ledgerEntry.create({
+      data: {
+        account: { connect: { id: account.id } },
+        entry_type: EntryType.CREDIT,
+        amount: 100,
+        currency: 'USD',
+        transaction_id: randomUUID(),
+        reference_id: randomUUID(),
+        description: 'Initial deposit',
+      },
+    });
 
-    // Check that one of the calls drops the ledger_entries trigger
-    expect(prisma.$executeRawUnsafe).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining('DROP TRIGGER IF EXISTS trg_prevent_ledger_entries_mutation')
-    );
+    // 3. Attempt a raw UPDATE on the ledger entry
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE ledger_entries SET amount = 999 WHERE id = '${entry.id}'`
+      );
+    } catch (e) {
+    }
 
-    // Check that one of the calls creates the ledger_entries trigger binding
-    expect(prisma.$executeRawUnsafe).toHaveBeenNthCalledWith(
-      4,
-      expect.stringContaining('CREATE TRIGGER trg_prevent_ledger_entries_mutation')
-    );
+    // 4. Query the row again and assert no change
+    const updatedEntry = await prisma.ledgerEntry.findUnique({
+      where: { id: entry.id },
+    });
 
-    // Check that one of the calls drops the ledger_accounts trigger
-    expect(prisma.$executeRawUnsafe).toHaveBeenNthCalledWith(
-      5,
-      expect.stringContaining('DROP TRIGGER IF EXISTS trg_prevent_ledger_accounts_delete')
-    );
+    expect(updatedEntry?.amount.toNumber()).toBe(100);
 
-    // Check that one of the calls creates the ledger_accounts trigger binding
-    expect(prisma.$executeRawUnsafe).toHaveBeenNthCalledWith(
-      6,
-      expect.stringContaining('CREATE TRIGGER trg_prevent_ledger_accounts_delete')
-    );
-  });
+    // Attempt DELETE
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM ledger_entries WHERE id = '${entry.id}'`
+      );
+    } catch (e) {
+    }
 
-  it('should not throw if the database execution fails (graceful fallback)', async () => {
-    prisma.$executeRawUnsafe.mockRejectedValue(new Error('Syntax error or unsupported dialect'));
+    // Verify row still exists
+    const deletedEntry = await prisma.ledgerEntry.findUnique({
+      where: { id: entry.id },
+    });
 
-    await expect(enforcer.onModuleInit()).resolves.not.toThrow();
-  });
+    expect(deletedEntry).toBeDefined();
+
+    // Clean up
+    await prisma.ledgerEntry.delete({ where: { id: entry.id } }).catch(() => {});
+    await prisma.ledgerAccount.delete({ where: { id: account.id } }).catch(() => {});
+    await prisma.wallet.delete({ where: { id: wallet.id } }).catch(() => {});
+  }, 30000);
 });

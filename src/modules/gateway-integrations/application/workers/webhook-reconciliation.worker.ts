@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+// import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../shared/infrastructure/database/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
@@ -18,7 +18,7 @@ export class WebhookReconciliationWorker {
     @InjectQueue('webhook-dlq') private readonly webhookQueue: Queue,
   ) {}
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  // @Cron(CronExpression.EVERY_10_MINUTES)
   async reconcileWebhooks() {
     this.logger.log('Starting Webhook reconciliation job...');
 
