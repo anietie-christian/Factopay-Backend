@@ -11,9 +11,8 @@ import { BlockchainSettlementModule } from './modules/blockchain-settlement/bloc
 import { WalletLedgerModule } from './modules/wallet-ledger/wallet-ledger.module';
 import { NotificationModule } from './modules/notification-service/notification.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ScheduleModule } from '@nestjs/schedule';
+// import { ScheduleModule } from '@nestjs/schedule';
 import { AuditModule } from './modules/audit/audit.module';
-import { AuditComplianceModule } from './modules/audit-compliance/audit-compliance.module';
 import { RewardsPointsModule } from './modules/rewards-points/rewards-points.module';
 import { B2bGatewayModule } from './modules/b2b-gateway/b2b-gateway.module';
 import { secretsLoader } from './config/secrets.loader';
@@ -51,10 +50,9 @@ const productModules = [
     WalletLedgerModule,
     NotificationModule,
     AuditModule,
-    AuditComplianceModule,
     ...productModules,
     EventEmitterModule.forRoot(),
-    ScheduleModule.forRoot(),
+    // ScheduleModule.forRoot(),
   ],
   controllers: [],
   providers: [
