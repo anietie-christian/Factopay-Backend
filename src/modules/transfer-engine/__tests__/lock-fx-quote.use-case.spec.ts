@@ -23,7 +23,8 @@ describe('LockFxQuoteUseCase', () => {
     getLiveRatesUseCase.execute.mockResolvedValue({
       sourceCurrency: 'EUR',
       targetCurrency: 'GHS',
-      rate: 16.20,
+      rate: 16.5,
+      feePercentage: 1.5,
       timestamp: new Date(),
     });
 
@@ -31,7 +32,8 @@ describe('LockFxQuoteUseCase', () => {
 
     expect(result.sourceCurrency).toBe('EUR');
     expect(result.targetCurrency).toBe('GHS');
-    expect(result.rate).toBe(16.20);
+    expect(result.rate).toBe(16.5);
+    expect(result.feePercentage).toBe(1.5);
     expect(result.expiresInSeconds).toBe(30);
     expect(result.quoteId).toBeDefined();
     expect(result.expiresAt).toBeInstanceOf(Date);

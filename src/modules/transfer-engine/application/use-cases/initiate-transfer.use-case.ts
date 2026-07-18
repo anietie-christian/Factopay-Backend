@@ -33,17 +33,30 @@ export class InitiateTransferUseCase {
     const parsedQuote = JSON.parse(quoteData);
     const targetCurrency = parsedQuote.targetCurrency;
     const rate = new Decimal(parsedQuote.rate);
+    const feePercentage = new Decimal(parsedQuote.feePercentage || 1.5);
     const sourceAmount = new Decimal(dto.amount);
     const targetAmount = sourceAmount.mul(rate);
+    const feeAmount = sourceAmount.mul(feePercentage).div(100);
 
     // 2. Create the Transfer record with status CREATED
     const transfer = await this.prisma.transfer.create({
       data: {
         userId,
         amount: dto.amount,
-        currency: dto.currency,
+        sourceCurrency: dto.currency,
+        targetCurrency: targetCurrency,
+        feeAmount: feeAmount.toNumber(),
+        corridor: `${dto.currency}-${targetCurrency}`,
         idempotencyKey,
         status: 'CREATED',
+      },
+    });
+
+    await this.prisma.transferEvent.create({
+      data: {
+        transferId: transfer.id,
+        status: 'CREATED',
+        metadata: { message: 'Transfer initiated' },
       },
     });
 
@@ -206,10 +219,13 @@ export class InitiateTransferUseCase {
 
     try {
       await this.postLedgerTransactionUseCase.execute(transfer.id, entries);
-    } catch (error) {
+    } catch (error: any) {
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
+      });
+      await this.prisma.transferEvent.create({
+        data: { transferId: transfer.id, status: 'FAILED', metadata: { message: 'Post ledger transaction failed', error: error.message } }
       });
       this.eventEmitter.emit('transfer.failed', {
         transferId: transfer.id,
@@ -222,9 +238,12 @@ export class InitiateTransferUseCase {
     }
 
     // 7. Update the Transfer status to WALLET_DEBITED
-    await this.prisma.transfer.update({
+    const updatedTransfer2 = await this.prisma.transfer.update({
       where: { id: transfer.id },
       data: { status: 'WALLET_DEBITED' },
+    });
+    await this.prisma.transferEvent.create({
+      data: { transferId: transfer.id, status: 'WALLET_DEBITED', metadata: { message: 'Wallet debited' } }
     });
 
     // 8. Resolve recipient's Stellar public key for on-chain payout
@@ -238,6 +257,9 @@ export class InitiateTransferUseCase {
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
+      });
+      await this.prisma.transferEvent.create({
+        data: { transferId: transfer.id, status: 'FAILED', metadata: { message: 'Missing stellar wallet' } }
       });
       this.eventEmitter.emit('transfer.failed', {
         transferId: transfer.id,
@@ -262,9 +284,12 @@ export class InitiateTransferUseCase {
 
       // 10. Update final status based on gateway confirmation
       const finalStatus = settlement.status === 'SUCCESS' ? 'COMPLETED' : 'BLOCKCHAIN_PENDING';
-      await this.prisma.transfer.update({
+      const updatedTransfer4 = await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: finalStatus },
+      });
+      await this.prisma.transferEvent.create({
+        data: { transferId: transfer.id, status: finalStatus, metadata: { message: 'Blockchain settlement result' } }
       });
 
       if (finalStatus === 'COMPLETED') {
@@ -284,6 +309,9 @@ export class InitiateTransferUseCase {
       await this.prisma.transfer.update({
         where: { id: transfer.id },
         data: { status: 'FAILED' },
+      });
+      await this.prisma.transferEvent.create({
+        data: { transferId: transfer.id, status: 'FAILED', metadata: { message: 'Settlement exception', error: error.message } }
       });
       this.eventEmitter.emit('transfer.failed', {
         transferId: transfer.id,

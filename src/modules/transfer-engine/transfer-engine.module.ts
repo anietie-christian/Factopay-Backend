@@ -12,6 +12,7 @@ import { AdminListTransfersUseCase } from './application/use-cases/admin-list-tr
 import { AdminReviewTransferUseCase } from './application/use-cases/admin-review-transfer.use-case';
 import { AdminCancelTransferUseCase } from './application/use-cases/admin-cancel-transfer.use-case';
 import { AdminResolveTransferUseCase } from './application/use-cases/admin-resolve-transfer.use-case';
+import { UserCancelTransferUseCase } from './application/use-cases/user-cancel-transfer.use-case';
 import { SharedModule } from '../shared/shared.module';
 import { BlockchainSettlementModule } from '../blockchain-settlement/blockchain-settlement.module';
 import { WalletLedgerModule } from '../wallet-ledger/wallet-ledger.module';
@@ -30,6 +31,7 @@ import { WalletLedgerModule } from '../wallet-ledger/wallet-ledger.module';
     AdminReviewTransferUseCase,
     AdminCancelTransferUseCase,
     AdminResolveTransferUseCase,
+    UserCancelTransferUseCase,
   ],
   exports: [InitiateTransferUseCase],
 })

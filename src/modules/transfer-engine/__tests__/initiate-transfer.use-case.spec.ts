@@ -27,6 +27,7 @@ describe('InitiateTransferUseCase', () => {
           useValue: {
             user: { findUnique: jest.fn() },
             transfer: { create: jest.fn(), aggregate: jest.fn(), update: jest.fn() },
+            transferEvent: { create: jest.fn() },
             wallet: { findUnique: jest.fn(), findFirst: jest.fn() },
             systemWallet: { findFirst: jest.fn() },
             stellarWallet: { findUnique: jest.fn() },

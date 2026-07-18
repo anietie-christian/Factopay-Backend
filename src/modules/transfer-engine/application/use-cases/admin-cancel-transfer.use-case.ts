@@ -50,6 +50,14 @@ export class AdminCancelTransferUseCase {
       },
     });
 
+    await this.prisma.transferEvent.create({
+      data: {
+        transferId: transferId,
+        status: 'CANCELLED',
+        metadata: { message: `Cancelled by admin: ${reason}`, adminId },
+      },
+    });
+
     // Log admin audit event
     await this.adminAuditService.log(
       adminId,
@@ -65,7 +73,7 @@ export class AdminCancelTransferUseCase {
       transferId: transfer.id,
       userId: transfer.userId,
       amount: transfer.amount.toString(),
-      currency: transfer.currency,
+      currency: transfer.sourceCurrency,
       recipientId: transfer.recipientId || '',
       failureReason: `Cancelled by admin: ${reason}`,
     });

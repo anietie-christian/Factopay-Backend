@@ -19,7 +19,7 @@ export class RatesController {
   @ApiOperation({ summary: 'Get live FX rates' })
   @ApiResponse({ status: 200, description: 'Live rates returned.' })
   async getLiveRates(@Query() query: GetLiveRatesDto) {
-    return this.getLiveRatesUseCase.execute(query.sourceCurrency, query.targetCurrency);
+    return this.getLiveRatesUseCase.execute(query.sourceCurrency, query.targetCurrency, query.amount);
   }
 
   @Post('quote')

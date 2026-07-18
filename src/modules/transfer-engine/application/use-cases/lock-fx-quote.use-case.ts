@@ -9,6 +9,7 @@ export interface FxQuoteResponse {
   sourceCurrency: CurrencyCode;
   targetCurrency: CurrencyCode;
   rate: number;
+  feePercentage: number;
   expiresInSeconds: number;
   expiresAt: Date;
 }
@@ -35,6 +36,7 @@ export class LockFxQuoteUseCase {
       sourceCurrency,
       targetCurrency,
       rate: liveRate.rate,
+      feePercentage: liveRate.feePercentage,
       expiresAt: expiresAt.toISOString(),
     };
 
@@ -48,6 +50,7 @@ export class LockFxQuoteUseCase {
       sourceCurrency,
       targetCurrency,
       rate: liveRate.rate,
+      feePercentage: liveRate.feePercentage,
       expiresInSeconds: ttlSeconds,
       expiresAt,
     };

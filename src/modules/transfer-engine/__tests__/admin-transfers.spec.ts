@@ -43,6 +43,9 @@ describe('Admin Transfer Workflows', () => {
         findUnique: jest.fn().mockResolvedValue(mockTransfer),
         update: jest.fn().mockImplementation((args) => Promise.resolve({ ...mockTransfer, ...args.data })),
       },
+      transferEvent: {
+        create: jest.fn().mockResolvedValue({}),
+      },
       stellarWallet: {
         findUnique: jest.fn().mockResolvedValue({ publicKey: 'GDESTINATION' }),
       },

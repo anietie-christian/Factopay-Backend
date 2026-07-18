@@ -64,6 +64,9 @@ export class AdminReviewTransferUseCase {
         where: { id: transferId },
         data: { status: 'BLOCKCHAIN_PENDING' },
       });
+      await this.prisma.transferEvent.create({
+        data: { transferId: transferId, status: 'BLOCKCHAIN_PENDING', metadata: { message: 'Approved by admin, moving to blockchain settlement' } }
+      });
 
       try {
         await this.submitSettlementUseCase.execute({
@@ -85,6 +88,9 @@ export class AdminReviewTransferUseCase {
           status: 'FAILED',
           failureReason: 'Rejected by admin review.',
         },
+      });
+      await this.prisma.transferEvent.create({
+        data: { transferId: transferId, status: 'FAILED', metadata: { message: 'Rejected by admin review' } }
       });
     }
 

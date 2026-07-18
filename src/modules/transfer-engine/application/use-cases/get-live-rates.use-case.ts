@@ -6,11 +6,13 @@ export interface LiveRateResponse {
   targetCurrency: CurrencyCode;
   rate: number;
   timestamp: Date;
+  feePercentage: number;
+  feeAmount?: number;
 }
 
 @Injectable()
 export class GetLiveRatesUseCase {
-  async execute(sourceCurrency: CurrencyCode, targetCurrency: CurrencyCode): Promise<LiveRateResponse> {
+  async execute(sourceCurrency: CurrencyCode, targetCurrency: CurrencyCode, amount?: number): Promise<LiveRateResponse> {
     // In production, this would call an external API like Fixer, OpenExchangeRates, etc.
     // For the MVP, we will mock a static or slightly randomized rate.
     
@@ -30,12 +32,17 @@ export class GetLiveRatesUseCase {
     // Add a tiny bit of random fluctuation to simulate a live market (e.g., +/- 0.05)
     const fluctuation = (Math.random() * 0.1) - 0.05;
     const finalRate = Number((baseRate + fluctuation).toFixed(4));
+    
+    const feePercentage = 1.5; // 1.5% fee
+    const feeAmount = amount ? Number((amount * (feePercentage / 100)).toFixed(2)) : undefined;
 
     return {
       sourceCurrency,
       targetCurrency,
       rate: finalRate,
       timestamp: new Date(),
+      feePercentage,
+      feeAmount,
     };
   }
 }

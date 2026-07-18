@@ -12,6 +12,9 @@ export class GetLiveRatesDto {
   @IsEnum(['USD', 'EUR', 'GBP', 'GHS'])
   @IsNotEmpty()
   targetCurrency: CurrencyCode;
+
+  @ApiProperty({ example: 100, description: 'Optional amount to calculate fees', required: false })
+  amount?: number;
 }
 
 export class LockQuoteDto extends GetLiveRatesDto {}

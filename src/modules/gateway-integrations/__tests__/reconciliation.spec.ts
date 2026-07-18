@@ -28,6 +28,9 @@ describe('Reconciliation Workers', () => {
       transfer: {
         update: jest.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, status: args.data.status, amount: 100, currency: 'USD', userId: 'user-1' })),
       },
+      transferEvent: {
+        create: jest.fn(),
+      },
       alertRecord: {
         findFirst: jest.fn(),
         create: jest.fn().mockResolvedValue({}),

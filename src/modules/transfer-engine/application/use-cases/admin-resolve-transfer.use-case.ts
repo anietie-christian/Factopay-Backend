@@ -40,6 +40,14 @@ export class AdminResolveTransferUseCase {
       },
     });
 
+    await this.prisma.transferEvent.create({
+      data: {
+        transferId: transferId,
+        status: 'COMPLETED',
+        metadata: { message: `Manually resolved by admin: ${notes}`, adminId },
+      },
+    });
+
     // Log admin audit event
     await this.adminAuditService.log(
       adminId,
@@ -55,7 +63,7 @@ export class AdminResolveTransferUseCase {
       transferId: transfer.id,
       userId: transfer.userId,
       amount: transfer.amount.toString(),
-      currency: transfer.currency,
+      currency: transfer.sourceCurrency,
       recipientId: transfer.recipientId || '',
     });
 
