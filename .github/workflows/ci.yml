@@ -19,31 +19,6 @@ jobs:
     name: Build, Lint, and Run Tests
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespassword
-          POSTGRES_DB: factopay_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -69,20 +44,16 @@ jobs:
       - name: Type Check (TypeScript compiler check)
         run: npx tsc --noEmit
 
-      - name: Setup Prisma Schema
-        env:
-          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
-          DIRECT_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
-        run: |
-          npx prisma generate
-          npx prisma db push --accept-data-loss
+      - name: Generate Prisma Client
+        run: npx prisma generate
 
       - name: Run Tests
         env:
-          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
-          DIRECT_URL: postgresql://postgres:postgrespassword@localhost:5432/factopay_test?schema=public
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5433/factopay_test?schema=public
+          DIRECT_URL: postgresql://testuser:testpassword@localhost:5433/factopay_test?schema=public
           REDIS_HOST: localhost
-          REDIS_PORT: 6379
+          REDIS_PORT: 6380
+          REDIS_URL: redis://localhost:6380
           JWT_ACCESS_SECRET: supersecretaccesskeytest123!@#
           JWT_REFRESH_SECRET: supersecretrefreshkeytest123!@#
           PII_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
