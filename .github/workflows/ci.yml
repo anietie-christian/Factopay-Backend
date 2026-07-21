@@ -78,10 +78,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -110,7 +110,7 @@ jobs:
           EC2_USER: ${{ vars.EC2_USER }}
           ECR_REPO_URL: ${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}
           AWS_SECRETS_MANAGER_NAME: ${{ vars.AWS_SECRETS_MANAGER_NAME }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
         run: |
           ssh $EC2_USER@$EC2_HOST "
             # Authenticate Docker on the host to ECR
