@@ -45,3 +45,21 @@ variable "s3_bucket_name" {
   type        = string
   description = "Unique bucket name for KYC document storage"
 }
+
+variable "github_org" {
+  type        = string
+  description = "GitHub organization or username (e.g. anietie-christian)"
+  default     = "anietie-christian"
+}
+
+variable "github_repo" {
+  type        = string
+  description = "GitHub repository name (e.g. Factopay-Backend)"
+  default     = "Factopay-Backend"
+}
+
+variable "create_oidc_provider" {
+  type        = bool
+  description = "Set to true to create the IAM OIDC provider. Set to false if it already exists in the AWS account."
+  default     = true
+}

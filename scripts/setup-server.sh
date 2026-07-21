@@ -80,9 +80,11 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
+      AWS_SECRETS_MANAGER_NAME: ${AWS_SECRETS_MANAGER_NAME}
+      AWS_REGION: ${AWS_REGION}
     deploy:
       resources:
         limits:
@@ -102,9 +104,11 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
+      AWS_SECRETS_MANAGER_NAME: ${AWS_SECRETS_MANAGER_NAME}
+      AWS_REGION: ${AWS_REGION}
     deploy:
       resources:
         limits:

@@ -39,3 +39,16 @@ module "storage" {
   environment = var.environment
   bucket_name = var.s3_bucket_name
 }
+
+module "secrets" {
+  source      = "./modules/secrets"
+  environment = var.environment
+}
+
+module "oidc" {
+  source               = "./modules/oidc"
+  environment          = var.environment
+  github_org           = var.github_org
+  github_repo          = var.github_repo
+  create_oidc_provider = var.create_oidc_provider
+}

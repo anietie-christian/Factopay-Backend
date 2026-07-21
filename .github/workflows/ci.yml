@@ -1,4 +1,4 @@
-name: FactoPay CI Pipeline
+name: FactoPay CI/CD Pipeline
 
 on:
   push:
@@ -9,6 +9,10 @@ on:
     branches:
       - main
       - dev
+
+permissions:
+  id-token: write # Required for requesting AWS OIDC credentials
+  contents: read  # Required for checkout
 
 jobs:
   build-and-test:
@@ -57,10 +61,10 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true # Keep build green but flag issues in step output
+        continue-on-error: true
 
       - name: Check Dependencies Security (Audit)
-        run: npm audit --audit-level=high || true # Warn on high/critical deps issues
+        run: npm audit --audit-level=high || true
 
       - name: Type Check (TypeScript compiler check)
         run: npx tsc --noEmit
@@ -89,3 +93,70 @@ jobs:
 
       - name: Build Application
         run: npm run dev-build || npm run build
+
+  deploy:
+    name: Deploy to AWS
+    needs: build-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, Tag, and Push Image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ vars.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: SSH and Trigger Blue-Green Deployment
+        env:
+          EC2_HOST: ${{ vars.EC2_HOST }}
+          EC2_USER: ${{ vars.EC2_USER }}
+          ECR_REPO_URL: ${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}
+          AWS_SECRETS_MANAGER_NAME: ${{ vars.AWS_SECRETS_MANAGER_NAME }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          ssh $EC2_USER@$EC2_HOST "
+            # Authenticate Docker on the host to ECR
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URL
+
+            # Retrieve database URLs from AWS Secrets Manager using host IAM Instance Profile
+            secrets=\$(aws secretsmanager get-secret-value --secret-id \"$AWS_SECRETS_MANAGER_NAME\" --query SecretString --output text)
+            db_url=\$(echo \"\$secrets\" | python3 -c \"import sys, json; print(json.load(sys.stdin).get('DATABASE_URL', ''))\")
+            direct_url=\$(echo \"\$secrets\" | python3 -c \"import sys, json; print(json.load(sys.stdin).get('DIRECT_URL', ''))\")
+
+            # Write properties to host environment file for docker-compose
+            echo \"ECR_REPO_URL=$ECR_REPO_URL\" > ~/app/.env
+            echo \"AWS_SECRETS_MANAGER_NAME=$AWS_SECRETS_MANAGER_NAME\" >> ~/app/.env
+            echo \"AWS_REGION=$AWS_REGION\" >> ~/app/.env
+            echo \"DATABASE_URL=\$db_url\" >> ~/app/.env
+            echo \"DIRECT_URL=\$direct_url\" >> ~/app/.env
+
+            # Trigger blue-green deployment script
+            bash ~/app/scripts/deploy.sh
+          "

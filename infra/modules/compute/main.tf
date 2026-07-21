@@ -18,8 +18,23 @@ variable "environment" {
   type = string
 }
 
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
 resource "aws_instance" "app_server" {
-  ami                    = "ami-0b72821e2f35de57e" # Standard Amazon Linux 2023 AMI for us-east-1 (x86_64)
+  ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [var.security_group_id]
@@ -37,6 +52,12 @@ resource "aws_instance" "app_server" {
               sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
               sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
               EOF
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required" # Enforces IMDSv2
+    http_put_response_hop_limit = 2          # Allows Docker containers to access instance metadata
+  }
 
   tags = {
     Name        = "factopay-${var.environment}-api-host"
