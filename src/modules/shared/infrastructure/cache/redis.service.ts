@@ -11,12 +11,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // In production, configure host/port from environment variables.
-    // For our docker-compose setup, 'redis' is the service name and 6379 is the default port.
-    this.redisClient = new Redis({
-      host: process.env.REDIS_HOST || 'redis',
-      port: Number(process.env.REDIS_PORT) || 6379,
-    });
+    if (process.env.REDIS_URL) {
+      this.redisClient = new Redis(process.env.REDIS_URL);
+    } else {
+      this.redisClient = new Redis({
+        host: process.env.REDIS_HOST || 'redis',
+        port: Number(process.env.REDIS_PORT) || 6379,
+      });
+    }
 
     this.redisClient.on('connect', () => {
       this.logger.log('Successfully connected to Redis');

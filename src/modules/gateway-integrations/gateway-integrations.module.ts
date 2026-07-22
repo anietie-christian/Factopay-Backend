@@ -24,10 +24,18 @@ import { WalletLedgerModule } from '../wallet-ledger/wallet-ledger.module';
     BlockchainSettlementModule,
     WalletLedgerModule,
     BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || 'redis',
-        port: Number(process.env.REDIS_PORT) || 6379,
-      },
+      connection: process.env.REDIS_URL
+        ? {
+            host: new URL(process.env.REDIS_URL).hostname,
+            port: Number(new URL(process.env.REDIS_URL).port),
+            username: new URL(process.env.REDIS_URL).username,
+            password: new URL(process.env.REDIS_URL).password,
+            tls: new URL(process.env.REDIS_URL).protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined,
+          }
+        : {
+            host: process.env.REDIS_HOST || 'redis',
+            port: Number(process.env.REDIS_PORT) || 6379,
+          },
     }),
     BullModule.registerQueue({
       name: 'webhook-dlq',
