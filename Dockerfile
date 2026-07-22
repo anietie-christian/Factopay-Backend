@@ -53,7 +53,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /usr/src/app
 
-RUN apk add --no-cache openssl
+# Install OpenSSL 1.1 compatibility libraries required by Prisma's query engine
+RUN apk add --no-cache openssl1.1-compat
 
 # Set Node environment to production
 ENV NODE_ENV=production
