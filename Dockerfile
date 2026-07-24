@@ -31,6 +31,8 @@ FROM node:20-alpine AS build
 
 WORKDIR /usr/src/app
 
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 COPY --from=development /usr/src/app/node_modules ./node_modules
 COPY . .
@@ -50,6 +52,9 @@ RUN if [ -f prisma/schema.prisma ]; then npx prisma generate; fi
 FROM node:20-alpine AS production
 
 WORKDIR /usr/src/app
+
+# Install OpenSSL libraries required by Prisma's query engine
+RUN apk add --no-cache openssl
 
 # Set Node environment to production
 ENV NODE_ENV=production
