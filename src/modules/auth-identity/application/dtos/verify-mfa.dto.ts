@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { IsNotEmpty, IsString, IsOptional, Length } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 

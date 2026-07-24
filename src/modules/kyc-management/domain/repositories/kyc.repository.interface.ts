@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { User } from '../../../auth-identity/domain/models/user.model';
 import { KycAttemptStatus, KycVerificationAttempt } from '../models/kyc-attempt.model';
 import { KycDocument } from '../models/kyc-document.model';

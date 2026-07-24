@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsInt, Min, Max, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';

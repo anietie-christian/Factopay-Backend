@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { CreateStellarAccountUseCase } from '../../application/use-cases/create-stellar-account.use-case';

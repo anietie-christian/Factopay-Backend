@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 export class KycStatusChangedEvent {
     static readonly eventName = 'kyc.status.changed';
 

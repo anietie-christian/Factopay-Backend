@@ -1,3 +1,4 @@
+# ----------------------------------------------------------------------------------------------------------------#*eddiere
 -- CreateEnum
 CREATE TYPE "WalletType" AS ENUM ('USER', 'SETTLEMENT', 'FEE', 'RESERVE', 'PAYOUT', 'LIQUIDITY');
 

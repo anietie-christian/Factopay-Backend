@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Module } from '@nestjs/common';
 import { TierCalculatorService } from './application/services/tier-calculator.service';
 import { PointsExpiryService } from './application/services/points-expiry.service';

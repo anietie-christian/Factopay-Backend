@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 export class FactoPayException extends Error {
   constructor(
     public readonly code: string,

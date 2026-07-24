@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Injectable, ConflictException, Inject } from '@nestjs/common';
 import { RegisterDto } from '../dtos/register.dto';
 import { User, Role, KycStatus } from '../../domain/models/user.model';

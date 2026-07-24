@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';
 import { randomUUID } from 'crypto';

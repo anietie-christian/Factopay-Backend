@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Test, TestingModule } from '@nestjs/testing';
 import { PointsExpiryService } from '../points-expiry.service';
 import { PrismaService } from '../../../../shared/infrastructure/database/prisma.service';

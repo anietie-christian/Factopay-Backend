@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SharedModule } from '../shared/shared.module';

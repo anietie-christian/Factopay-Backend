@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 export enum KycAttemptStatus {
   INITIATED = 'INITIATED',
   APPROVED = 'APPROVED',

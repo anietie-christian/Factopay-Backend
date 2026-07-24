@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController, RedisHealthIndicator } from '../infrastructure/controllers/health.controller';
 import { PrismaService } from '../infrastructure/database/prisma.service';

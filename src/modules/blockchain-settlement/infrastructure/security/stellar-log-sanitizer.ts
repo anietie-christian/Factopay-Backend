@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 export class StellarLogSanitizer {
   private static readonly SECRET_KEY_REGEX = /S[A-Z2-7]{55}/g;
 

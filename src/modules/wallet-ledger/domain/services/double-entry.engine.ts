@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Decimal } from 'decimal.js';
 import { UnbalancedEntriesException } from '../exceptions/unbalanced-entries.exception';
 

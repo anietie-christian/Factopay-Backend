@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Test, TestingModule } from '@nestjs/testing';
 import { PostLedgerTransactionUseCase } from '../application/use-cases/post-ledger-transaction.use-case';
 import { PrismaWalletRepository } from '../infrastructure/repositories/prisma-wallet.repository';

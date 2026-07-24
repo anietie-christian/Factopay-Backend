@@ -1,3 +1,4 @@
+# ----------------------------------------------------------------------------------------------------------------#*eddiere
 -- CreateEnum
 CREATE TYPE "KycDocumentType" AS ENUM ('PASSPORT', 'GHANA_CARD', 'SELFIE', 'PROOF_OF_ADDRESS');
 

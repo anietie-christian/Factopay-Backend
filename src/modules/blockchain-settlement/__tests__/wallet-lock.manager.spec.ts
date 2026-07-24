@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Test, TestingModule } from '@nestjs/testing';
 import { WalletLockManager } from '../infrastructure/security/wallet-lock.manager';
 import { RedisService } from '../../shared/infrastructure/cache/redis.service';

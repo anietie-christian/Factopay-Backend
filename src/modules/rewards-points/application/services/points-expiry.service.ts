@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../modules/shared/infrastructure/database/prisma.service';
 import { PointsReason } from '../../domain/enums/points-reason.enum';

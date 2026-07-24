@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 process.env.REDIS_HOST = 'localhost';
 jest.setTimeout(60000);
 const request = require('supertest');

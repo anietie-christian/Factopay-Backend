@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Module } from '@nestjs/common';
 import { ProvisionWalletUseCase } from './application/use-cases/provision-wallet.use-case';
 import { CalculateBalanceUseCase } from './application/use-cases/calculate-balance.use-case';

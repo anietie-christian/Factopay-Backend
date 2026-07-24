@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
 import { Keypair } from '@stellar/stellar-sdk';
 

@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Type } from 'class-transformer';
 import { IsString, IsOptional, ValidateNested, IsIn } from 'class-validator';
 

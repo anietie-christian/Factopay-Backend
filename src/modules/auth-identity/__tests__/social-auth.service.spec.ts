@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Test, TestingModule } from '@nestjs/testing';
 import { SocialAuthService } from '../infrastructure/adapters/social-auth.service';
 import { ConfigService } from '@nestjs/config';

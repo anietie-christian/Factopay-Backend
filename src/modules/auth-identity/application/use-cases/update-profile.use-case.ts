@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { UpdateProfileDto } from '../dtos/update-profile.dto';
 import { IUserRepository, USER_REPOSITORY_TOKEN } from '../../domain/repositories/user-repository.interface';

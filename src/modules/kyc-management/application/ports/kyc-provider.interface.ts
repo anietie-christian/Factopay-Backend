@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 export const KYC_PROVIDER_TOKEN = 'IKycProvider';
 
 export interface IKycProvider {

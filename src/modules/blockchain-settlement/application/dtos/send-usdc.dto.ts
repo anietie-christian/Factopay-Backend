@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsUUID, IsNumberString, IsOptional } from 'class-validator';
 import { IsStellarPublicKey } from './decorators/is-stellar-public-key.decorator';

@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { secretsLoader } from '../secrets.loader';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 

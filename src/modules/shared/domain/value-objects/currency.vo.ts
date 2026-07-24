@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { InvalidCurrencyException } from '../exceptions/value-object.exception';
 
 export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'GHS', 'NGN', 'KES'] as const;

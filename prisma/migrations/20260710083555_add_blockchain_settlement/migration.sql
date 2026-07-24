@@ -1,3 +1,4 @@
+# ----------------------------------------------------------------------------------------------------------------#*eddiere
 -- CreateTable
 CREATE TABLE "blockchain_transactions" (
     "id" UUID NOT NULL,

@@ -1,3 +1,4 @@
+// ---------------------------------------------------------------------------------------------------------------#*eddiere
 import { IsString, IsNotEmpty, IsDateString, IsOptional, Length } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { BasicProfile } from '../../domain/repositories/kyc.repository.interface';
