@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserController } from './infrastructure/controllers/user.controller';
 import { AdminUsersController } from './infrastructure/controllers/admin-users.controller';
 import { AdminDashboardController } from './infrastructure/controllers/admin-dashboard.controller';
+import { RecipientController } from './infrastructure/controllers/recipient.controller';
 
 import { RegisterUserUseCase } from './application/use-cases/register-user.use-case';
 import { LoginUseCase } from './application/use-cases/login.use-case';
@@ -58,7 +59,7 @@ import { getRequiredEnv } from '../../config/required-env';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController, UserController, AdminUsersController, AdminDashboardController],
+  controllers: [AuthController, UserController, AdminUsersController, AdminDashboardController, RecipientController],
   providers: [
     // User endpoints Use Cases
     RegisterUserUseCase,
